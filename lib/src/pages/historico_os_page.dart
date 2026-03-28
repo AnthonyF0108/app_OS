@@ -15,8 +15,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage> {
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'Em Aberto': return Colors.blue;
-      case 'Em Orçamento': return Colors.orange;
+      case 'Orçamento': return Colors.blue;
+      case 'Aguardando Aprovação': return Colors.orange;
       case 'Aprovado': return Colors.green;
       case 'Finalizado': return Colors.grey;
       default: return Colors.blueAccent;
@@ -25,8 +25,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage> {
 
   IconData _getStatusIcon(String status) {
     switch (status) {
-      case 'Em Aberto': return Icons.hourglass_empty;
-      case 'Em Orçamento': return Icons.request_quote;
+      case 'Orçamento': return Icons.hourglass_empty;
+      case 'Aguardando Aprovação': return Icons.request_quote;
       case 'Aprovado': return Icons.play_circle_outline;
       case 'Finalizado': return Icons.verified;
       default: return Icons.info_outline;
@@ -107,7 +107,7 @@ class _HistoricoOSPageState extends State<HistoricoOSPage> {
             itemBuilder: (context, index) {
               var osDoc = listaFiltrada[index];
               var os = osDoc.data() as Map<String, dynamic>;
-              String statusAtual = os['status'] ?? 'Em Aberto';
+              String statusAtual = os['status'] ?? 'Orçamento';
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

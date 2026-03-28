@@ -189,10 +189,23 @@ class _EstoquePageState extends State<EstoquePage> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
+          // LÓGICA DE FILTRO ATUALIZADA
           final itens = snapshot.data!.docs.where((doc) {
             final d = doc.data() as Map<String, dynamic>;
-            return (d['nome'] ?? "").toString().toLowerCase().contains(_busca);
+
+            // Converte tudo para string e minúsculo para comparar sem erro
+            final nome = (d['nome'] ?? "").toString().toLowerCase();
+            final ean = (d['ean'] ?? "").toString().toLowerCase();
+
+            // Retorna verdadeiro se a busca estiver no nome OU no EAN
+            return nome.contains(_busca) || ean.contains(_busca);
           }).toList();
+
+          if (itens.isEmpty) {
+            return const Center(
+              child: Text("Nenhum produto encontrado", style: TextStyle(color: Colors.white54)),
+            );
+          }
 
           return ListView.builder(
             itemCount: itens.length,
@@ -201,6 +214,7 @@ class _EstoquePageState extends State<EstoquePage> {
               final d = item.data() as Map<String, dynamic>;
               num qtd = d['quantidade'] ?? 0;
               num preco = d['preco'] ?? 0.0;
+              String eanMostrar = d['ean'] ?? ""; // Variável para mostrar o EAN na lista
 
               return Card(
                 color: Colors.white.withOpacity(0.05),
@@ -224,13 +238,20 @@ class _EstoquePageState extends State<EstoquePage> {
                       Expanded(child: Text(d['nome'] ?? "S/N", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
                     ],
                   ),
-                  subtitle: Row(
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("R\$ ${preco.toDouble().toStringAsFixed(2)}", style: const TextStyle(color: Colors.greenAccent)),
-                      const SizedBox(width: 15),
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18),
-                        onPressed: () => _abrirEditorProduto(item),
+                      if (eanMostrar.isNotEmpty)
+                        Text("EAN: $eanMostrar", style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                      Row(
+                        children: [
+                          Text("R\$ ${preco.toDouble().toStringAsFixed(2)}", style: const TextStyle(color: Colors.greenAccent)),
+                          const SizedBox(width: 15),
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18),
+                            onPressed: () => _abrirEditorProduto(item),
+                          ),
+                        ],
                       ),
                     ],
                   ),

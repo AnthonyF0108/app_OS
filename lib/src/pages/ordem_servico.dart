@@ -21,7 +21,7 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
   // LISTA DE PRODUTOS SELECIONADOS (Carrinho)
   List<Map<String, dynamic>> produtosSelecionados = [];
   String formaPagamento = 'Dinheiro';
-  String status = 'Em Aberto';
+  String status = 'Orçamento';
 
   // Controllers
   final equipamentoController = TextEditingController();
@@ -40,7 +40,7 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
       defeitoController.text = dados['defeito'] ?? '';
       pecasController.text = (dados['valor_pecas'] ?? 0.0).toStringAsFixed(2);
       servicoController.text = (dados['valor_servico'] ?? 0.0).toStringAsFixed(2);
-      status = dados['status'] ?? 'Em Aberto';
+      status = dados['status'] ?? 'Orçamento';
       formaPagamento = dados['forma_pagamento'] ?? 'Dinheiro';
 
       // Carrega a lista de produtos se ela já existir na OS
@@ -186,7 +186,7 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
               DropdownButtonFormField<String>(
                 value: status,
                 decoration: const InputDecoration(labelText: 'Status', icon: Icon(Icons.sync)),
-                items: ['Em Aberto', 'Em Orçamento', 'Aprovado', 'Finalizado'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                items: ['Orçamento', 'Aguardando Aprovação', 'Aprovado', 'Finalizado'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (v) => setState(() => status = v!),
               ),
 
