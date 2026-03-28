@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'cliente_search_delegate.dart';
+import 'produto_search_delegate.dart';
 
 class OrdemServicoPage extends StatefulWidget {
-  // Parâmetro opcional: se receber um documento, entra em modo de EDIÇÃO
   final QueryDocumentSnapshot? osExistente;
-
   const OrdemServicoPage({super.key, this.osExistente});
 
   @override
@@ -15,68 +14,80 @@ class OrdemServicoPage extends StatefulWidget {
 class _OrdemServicoPageState extends State<OrdemServicoPage> {
   final _formKey = GlobalKey<FormState>();
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Em Aberto': return Colors.blue;
-      case 'Em Orçamento': return Colors.orange;
-      case 'Aprovado': return Colors.green;
-      case 'Finalizado': return Colors.grey;
-      default: return Colors.white;
-    }
-  }
-
   // Dados do Cliente
   String nomeClienteExibicao = "Nenhum cliente selecionado";
   String? idClienteFirebase;
 
+  // LISTA DE PRODUTOS SELECIONADOS (Carrinho)
+  List<Map<String, dynamic>> produtosSelecionados = [];
+  String formaPagamento = 'Dinheiro';
+  String status = 'Em Aberto';
+
   // Controllers
   final equipamentoController = TextEditingController();
   final defeitoController = TextEditingController();
-  final pecasController = TextEditingController();
-  final servicoController = TextEditingController();
-  String status = 'Em Aberto';
+  final pecasController = TextEditingController(text: '0.00');
+  final servicoController = TextEditingController(text: '0.00');
 
   @override
   void initState() {
     super.initState();
-    // Se o widget recebeu uma OS existente, preenchemos os campos automaticamente
     if (widget.osExistente != null) {
       final dados = widget.osExistente!.data() as Map<String, dynamic>;
       nomeClienteExibicao = dados['cliente_nome'] ?? 'Sem Nome';
       idClienteFirebase = dados['cliente_id'];
       equipamentoController.text = dados['equipamento'] ?? '';
       defeitoController.text = dados['defeito'] ?? '';
-      pecasController.text = (dados['valor_pecas'] ?? 0.0).toString();
-      servicoController.text = (dados['valor_servico'] ?? 0.0).toString();
+      pecasController.text = (dados['valor_pecas'] ?? 0.0).toStringAsFixed(2);
+      servicoController.text = (dados['valor_servico'] ?? 0.0).toStringAsFixed(2);
       status = dados['status'] ?? 'Em Aberto';
+      formaPagamento = dados['forma_pagamento'] ?? 'Dinheiro';
+
+      // Carrega a lista de produtos se ela já existir na OS
+      if (dados['produtos_detalhes'] != null) {
+        produtosSelecionados = List<Map<String, dynamic>>.from(dados['produtos_detalhes']);
+      }
     }
   }
 
+  void _atualizarSomaPecas() {
+    double total = produtosSelecionados.fold(0, (sum, item) => sum + (item['preco'] ?? 0.0));
+    setState(() {
+      pecasController.text = total.toStringAsFixed(2);
+    });
+  }
+
   void pesquisarCliente() async {
-    // Bloqueia a troca de cliente se estiver editando (opcional, para evitar erros de vínculo)
     if (widget.osExistente != null) return;
-
     final DocumentSnapshot? resultado = await showSearch<DocumentSnapshot?>(
-      context: context,
-      delegate: ClienteSearchDelegate(),
-    );
-
+        context: context, delegate: ClienteSearchDelegate());
     if (resultado != null) {
       setState(() {
         idClienteFirebase = resultado.id;
-        final dadosCliente = resultado.data() as Map<String, dynamic>?;
-        if (dadosCliente != null) {
-          nomeClienteExibicao = dadosCliente['nome'] ?? 'Sem Nome';
-        }
+        nomeClienteExibicao = resultado['nome'] ?? 'Sem Nome';
+      });
+    }
+  }
+
+  void adicionarProduto() async {
+    final DocumentSnapshot? prodt = await showSearch<DocumentSnapshot?>(
+        context: context, delegate: ProdutoSearchDelegate());
+
+    if (prodt != null) {
+      setState(() {
+        produtosSelecionados.add({
+          'id': prodt.id,
+          'nome': prodt['nome'],
+          'preco': double.tryParse(prodt['preco'].toString()) ?? 0.0,
+        });
+        _atualizarSomaPecas();
       });
     }
   }
 
   void salvarOS() async {
     if (idClienteFirebase == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecione um cliente.'), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecione um cliente!')));
       return;
     }
 
@@ -89,47 +100,44 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
         'valor_pecas': double.tryParse(pecasController.text) ?? 0.0,
         'valor_servico': double.tryParse(servicoController.text) ?? 0.0,
         'status': status,
+        'forma_pagamento': formaPagamento,
+        'produtos_detalhes': produtosSelecionados, // Salva a lista de peças
         'ultima_atualizacao': FieldValue.serverTimestamp(),
       };
 
       try {
         if (widget.osExistente != null) {
-          // ATUALIZAR OS EXISTENTE
-          await FirebaseFirestore.instance
-              .collection('ordens')
-              .doc(widget.osExistente!.id)
-              .update(dadosParaSalvar);
+          await FirebaseFirestore.instance.collection('ordens').doc(widget.osExistente!.id).update(dadosParaSalvar);
         } else {
-          // CRIAR NOVA OS
           dadosParaSalvar['data_abertura'] = FieldValue.serverTimestamp();
           await FirebaseFirestore.instance.collection('ordens').add(dadosParaSalvar);
         }
 
+        // LÓGICA DE BAIXA DE ESTOQUE MÚLTIPLA
+        if (status == 'Finalizado' && produtosSelecionados.isNotEmpty) {
+          for (var item in produtosSelecionados) {
+            final docRef = FirebaseFirestore.instance.collection('produtos').doc(item['id']);
+            await FirebaseFirestore.instance.runTransaction((tx) async {
+              DocumentSnapshot snap = await tx.get(docRef);
+              if (snap.exists) {
+                int qtdAtual = snap['quantidade'] ?? 0;
+                if (qtdAtual > 0) tx.update(docRef, {'quantidade': qtdAtual - 1});
+              }
+            });
+          }
+        }
+
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.osExistente != null ? 'OS Atualizada!' : 'OS Salva com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
-        );
+        print("Erro ao salvar: $e");
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    bool modoEdicao = widget.osExistente != null;
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(modoEdicao ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'),
-        backgroundColor: const Color(0xFF000033),
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text(widget.osExistente != null ? 'Editar OS' : 'Nova OS')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -137,81 +145,56 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Dados do Cliente", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-
-              // Painel de exibição do Cliente
-              InkWell(
-                onTap: pesquisarCliente,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: modoEdicao ? Colors.grey : Colors.blueAccent.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.person, color: modoEdicao ? Colors.grey : Colors.blueAccent),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Text(
-                          nomeClienteExibicao,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: idClienteFirebase != null ? FontWeight.bold : FontWeight.normal,
-                            color: idClienteFirebase != null ? Colors.white : Colors.white70,
-                          ),
-                        ),
-                      ),
-                      if (!modoEdicao) const Icon(Icons.search, color: Colors.blueAccent),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 25),
-              const Text("Informações Técnicas", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              _buildField(equipamentoController, 'Equipamento', Icons.build_circle),
-              _buildField(defeitoController, 'Defeito Relatado', Icons.warning_amber),
+              _sessaoTitulo("Cliente"),
+              _buildSelector(nomeClienteExibicao, Icons.person, pesquisarCliente),
 
               const SizedBox(height: 20),
-              const Text("Valores e Status", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              _buildField(pecasController, 'Valor Peças (0.00)', Icons.handyman, keyboard: TextInputType.number),
-              _buildField(servicoController, 'Valor Serviço (0.00)', Icons.payments, keyboard: TextInputType.number),
+              _sessaoTitulo("Equipamento"),
+              _buildField(equipamentoController, 'Aparelho / Modelo', Icons.smartphone),
+              _buildField(defeitoController, 'Defeito / Relato', Icons.error_outline),
 
+              const SizedBox(height: 20),
+              _sessaoTitulo("Peças e Peças Selecionadas"),
+              // LISTA DE PEÇAS NO ESTILO CHIP/CARD
+              Wrap(
+                spacing: 8,
+                children: produtosSelecionados.map((p) => Chip(
+                  label: Text(p['nome'], style: const TextStyle(fontSize: 12)),
+                  deleteIcon: const Icon(Icons.close, size: 18),
+                  onDeleted: () => setState(() {
+                    produtosSelecionados.remove(p);
+                    _atualizarSomaPecas();
+                  }),
+                )).toList(),
+              ),
               const SizedBox(height: 10),
+              _buildSelector("Adicionar Peça do Estoque", Icons.add_shopping_cart, adicionarProduto, color: Colors.orangeAccent),
+
+              const SizedBox(height: 20),
+              _sessaoTitulo("Financeiro"),
+              _buildField(pecasController, 'Total em Peças', Icons.handyman, readOnly: true),
+              _buildField(servicoController, 'Valor da Mão de Obra', Icons.payments, keyboard: TextInputType.number),
+
               DropdownButtonFormField<String>(
-                value: status,
-                decoration: const InputDecoration(
-                    labelText: 'Status da OS',
-                    icon: Icon(Icons.info_outline)
-                ),
-                // Lista atualizada com as 4 opções
-                items: ['Em Aberto', 'Em Orçamento', 'Aprovado', 'Finalizado']
-                    .map((s) => DropdownMenuItem(
-                  value: s,
-                  child: Text(s, style: TextStyle(color: _getStatusColor(s))),
-                ))
-                    .toList(),
-                onChanged: (novo) => setState(() => status = novo!),
+                value: formaPagamento,
+                decoration: const InputDecoration(labelText: 'Pagamento', icon: Icon(Icons.credit_card)),
+                items: ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                onChanged: (v) => setState(() => formaPagamento = v!),
               ),
 
-              const SizedBox(height: 35),
+              const SizedBox(height: 15),
+              DropdownButtonFormField<String>(
+                value: status,
+                decoration: const InputDecoration(labelText: 'Status', icon: Icon(Icons.sync)),
+                items: ['Em Aberto', 'Em Orçamento', 'Aprovado', 'Finalizado'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                onChanged: (v) => setState(() => status = v!),
+              ),
+
+              const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: salvarOS,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: modoEdicao ? Colors.orange[800] : Colors.greenAccent[700],
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(
-                  modoEdicao ? 'ATUALIZAR ORDEM DE SERVIÇO' : 'SALVAR ORDEM DE SERVIÇO',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: Colors.green),
+                child: const Text("SALVAR ORDEM DE SERVIÇO", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -220,19 +203,28 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
     );
   }
 
-  Widget _buildField(TextEditingController controller, String label, IconData icon, {TextInputType keyboard = TextInputType.text}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          icon: Icon(icon),
-          border: const OutlineInputBorder(),
-        ),
-        keyboardType: keyboard,
-        validator: (val) => val!.isEmpty ? 'Obrigatório' : null,
-      ),
-    );
-  }
+  Widget _sessaoTitulo(String texto) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(texto, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+  );
+
+  Widget _buildSelector(String texto, IconData icon, VoidCallback onTap, {Color color = Colors.white70}) => InkWell(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(border: Border.all(color: color.withOpacity(0.3)), borderRadius: BorderRadius.circular(8)),
+      child: Row(children: [Icon(icon, color: color), const SizedBox(width: 10), Expanded(child: Text(texto, style: TextStyle(color: color)))]),
+    ),
+  );
+
+  Widget _buildField(TextEditingController ctrl, String label, IconData icon, {bool readOnly = false, TextInputType keyboard = TextInputType.text}) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: ctrl,
+      readOnly: readOnly,
+      keyboardType: keyboard,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder()),
+      validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+    ),
+  );
 }

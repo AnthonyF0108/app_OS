@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'EntradaEstoquePage.dart';
+import 'estoque_page.dart';
 import 'lista_clientes_page.dart';
 import 'ordem_servico.dart';
 import 'historico_os_page.dart';
@@ -12,11 +14,13 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('FLUXO LIVRE - GESTÃO'),
         centerTitle: true,
-        backgroundColor: const Color(0xFF000033), // Azul escuro do seu logo
+        backgroundColor: const Color(0xFF000033),
         foregroundColor: Colors.white,
-        elevation: 10,
+        elevation: 0, // Removi a elevação para combinar com o gradiente
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -36,20 +40,14 @@ class HomePage extends StatelessWidget {
                 "Cadastrar Cliente",
                 Icons.person_add_alt_1,
                 Colors.blueAccent,
-                    () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ListaClientesPage()),
-                ),
+                    () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ListaClientesPage())),
               ),
               _menuCard(
                 context,
                 "Nova OS",
                 Icons.note_add,
                 Colors.greenAccent,
-                    () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const OrdemServicoPage()),
-                ),
+                    () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OrdemServicoPage())),
               ),
               _menuCard(
                 context,
@@ -58,12 +56,23 @@ class HomePage extends StatelessWidget {
                 Colors.orangeAccent,
                     () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoricoOSPage())),
               ),
+              // AGORA O ESTOQUE ESTÁ IGUAL AOS OUTROS
               _menuCard(
                 context,
-                "Configurações",
-                Icons.settings_suggest,
-                Colors.blueGrey,
-                    () => print("Configurações clicado"),
+                "Estoque de Peças",
+                Icons.inventory_2,
+                Colors.purpleAccent,
+                    () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EstoquePage())),
+              ),
+              _menuCard(
+                context,
+                "Entrada de Peças",
+                Icons.add_box,
+                Colors.teal,
+                    () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const EntradaEstoquePage()),
+                ),
               ),
             ],
           ),
@@ -77,11 +86,11 @@ class HomePage extends StatelessWidget {
       onTap: acao,
       borderRadius: BorderRadius.circular(20),
       child: Card(
-        color: Colors.white.withOpacity(0.1), // Estilo levemente transparente (Glassmorphism)
+        color: Colors.white.withOpacity(0.08), // Efeito Glassmorphism
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: cor.withOpacity(0.5), width: 1),
+          side: BorderSide(color: cor.withOpacity(0.4), width: 1.5), // Borda sutil com a cor do ícone
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -89,19 +98,22 @@ class HomePage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: cor.withOpacity(0.2),
+                color: cor.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icone, size: 40, color: cor),
+              child: Icon(icone, size: 38, color: cor),
             ),
             const SizedBox(height: 12),
-            Text(
-              titulo,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Text(
+                titulo,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],

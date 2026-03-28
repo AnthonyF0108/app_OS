@@ -1,46 +1,53 @@
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class PdfService {
+  // Método estático para que possa ser chamado como PdfService.gerarEEnviarWhatsApp
   static Future<void> gerarEEnviarWhatsApp({
     required Map<String, dynamic> os,
     required String telefoneCliente,
   }) async {
     final pdf = pw.Document();
 
-    // Criando o layout do PDF
+    // Estilo básico de fonte
+    final fontBold = pw.Font.helveticaBold();
+    final fontNormal = pw.Font.helvetica();
+
     pdf.addPage(
       pw.Page(
+        pageFormat: PdfPageFormat.a4,
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("COMPROVANTE DE ORDEM DE SERVIÇO",
-                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-              pw.Divider(),
+              pw.Text("ORDEM DE SERVIÇO", style: pw.TextStyle(font: fontBold, fontSize: 22)),
+              pw.Divider(thickness: 2),
               pw.SizedBox(height: 10),
-              pw.Text("Cliente: ${os['cliente_nome']}"),
-              pw.Text("Equipamento: ${os['equipamento']}"),
-              pw.Text("Status Atual: ${os['status']}"),
+              pw.Text("CLIENTE: ${os['cliente_nome'] ?? 'Não informado'}", style: pw.TextStyle(font: fontNormal)),
+              pw.Text("EQUIPAMENTO: ${os['equipamento'] ?? 'Não informado'}", style: pw.TextStyle(font: fontNormal)),
+              pw.Text("STATUS: ${os['status'] ?? 'Em Aberto'}", style: pw.TextStyle(font: fontNormal)),
               pw.SizedBox(height: 15),
-              pw.Text("DEFEITO:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.Text("${os['defeito']}"),
+              pw.Text("DEFEITO RELATADO:", style: pw.TextStyle(font: fontBold)),
+              pw.Text("${os['defeito'] ?? 'Nenhum detalhe informado'}", style: pw.TextStyle(font: fontNormal)),
+              pw.SizedBox(height: 20),
               pw.Divider(),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text("Peças: R\$ ${os['valor_pecas'].toStringAsFixed(2)}"),
-                  pw.Text("Mão de Obra: R\$ ${os['valor_servico'].toStringAsFixed(2)}"),
+                  pw.Text("Peças: R\$ ${(os['valor_pecas'] ?? 0.0).toStringAsFixed(2)}"),
+                  pw.Text("Mão de Obra: R\$ ${(os['valor_servico'] ?? 0.0).toStringAsFixed(2)}"),
                 ],
               ),
               pw.SizedBox(height: 10),
-              pw.Text(
-                "VALOR TOTAL: R\$ ${(os['valor_pecas'] + os['valor_servico']).toStringAsFixed(2)}",
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Text(
+                  "TOTAL: R\$ ${((os['valor_pecas'] ?? 0) + (os['valor_servico'] ?? 0)).toStringAsFixed(2)}",
+                  style: pw.TextStyle(font: fontBold, fontSize: 18, color: PdfColors.green),
+                ),
               ),
             ],
           );
@@ -48,25 +55,12 @@ class PdfService {
       ),
     );
 
-// 1. Salva o PDF temporário (essa parte continua igual)
+    // Salva em pasta temporária
     final output = await getTemporaryDirectory();
     final file = File("${output.path}/OS_${os['cliente_nome']}.pdf");
     await file.writeAsBytes(await pdf.save());
 
-    // 2. Formata o número para referência (opcional)
-    String numeroLimpo = telefoneCliente.replaceAll(RegExp(r'[^0-9]'), '');
-
-    // 3. Em vez de abrir o link wa.me, vamos direto para o ShareXFiles
-    // O ShareXFiles abre o menu do Android onde você clica no ícone do Zap
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: "Olá ${os['cliente_nome']}, segue o PDF da sua Ordem de Serviço de ${os['equipamento']}.",
-    );
-
-    // 4. Abre o seletor de compartilhamento para enviar o ARQUIVO logo em seguida
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: 'Arquivo PDF da Ordem de Serviço',
-    );
+    // Abre a partilha do arquivo
+    await Share.shareXFiles([XFile(file.path)], text: 'Segue a Ordem de Serviço de ${os['cliente_nome']}');
   }
 }
