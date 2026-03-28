@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "352701240757",
+    "project_id": "ordemservico-a49c1",
+    "storage_bucket": "ordemservico-a49c1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:352701240757:android:1410231afc17dd18a9f5fc",
+        "android_client_info": {
+          "package_name": "com.anthony.ordemservico"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRovCr-uz335PMqimYd1xDt5vYvyuk-u8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
