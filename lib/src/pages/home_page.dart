@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'EntradaEstoquePage.dart';
-import 'estoque_page.dart';
 import 'lista_clientes_page.dart';
 import 'ordem_servico.dart';
 import 'historico_os_page.dart';
@@ -55,24 +53,6 @@ class HomePage extends StatelessWidget {
                 Icons.analytics_outlined,
                 Colors.orangeAccent,
                     () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoricoOSPage())),
-              ),
-              // AGORA O ESTOQUE ESTÁ IGUAL AOS OUTROS
-              _menuCard(
-                context,
-                "Estoque de Peças",
-                Icons.inventory_2,
-                Colors.purpleAccent,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EstoquePage())),
-              ),
-              _menuCard(
-                context,
-                "Entrada de Peças",
-                Icons.add_box,
-                Colors.teal,
-                    () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const EntradaEstoquePage()),
-                ),
               ),
             ],
           ),
