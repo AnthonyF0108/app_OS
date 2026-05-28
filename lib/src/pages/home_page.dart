@@ -11,7 +11,7 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FLUXO LIVRE - GESTÃO'),
+        title: const Text('AF Motors & Serviços'),
         centerTitle: true,
         backgroundColor: const Color(0xFF000033),
         foregroundColor: Colors.white,
@@ -28,43 +28,63 @@ class HomePage extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 15,
-            mainAxisSpacing: 15,
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
             children: [
-              _menuCard(
-                context,
-                "Clientes",
-                Icons.person_add_alt_1,
-                Colors.blueAccent,
-                    () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const ListaClientesPage())),
+              const SizedBox(height: 15),
+
+              // ── LOGO DO ESCUDO (SEM ESCRITA) ──────────────────
+              Center(
+                child: Image.asset(
+                  'assets/logo.png',
+                  height: 160, // Ajuste o tamanho ideal na tela do dispositivo
+                  fit: BoxFit.contain,
+                ),
               ),
-              _menuCard(
-                context,
-                "Nova OS",
-                Icons.note_add,
-                Colors.greenAccent,
-                    () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const OrdemServicoPage())),
-              ),
-              _menuCard(
-                context,
-                "Histórico / Listar",
-                Icons.analytics_outlined,
-                Colors.orangeAccent,
-                    () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const HistoricoOSPage())),
-              ),
-              _menuCard(
-                context,
-                "Fluxo de Caixa",
-                Icons.account_balance_wallet,
-                Colors.purpleAccent,
-                    () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const FluxoCaixaPage())),
+
+              const SizedBox(height: 20),
+
+              // ── GRID DE MENUS DO APP ──────────────────────────
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 15,
+                  mainAxisSpacing: 15,
+                  children: [
+                    _menuCard(
+                      context,
+                      "Clientes",
+                      Icons.person_add_alt_1,
+                      Colors.blueAccent,
+                          () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const ListaClientesPage())),
+                    ),
+                    _menuCard(
+                      context,
+                      "Nova OS",
+                      Icons.note_add,
+                      Colors.greenAccent,
+                          () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const OrdemServicoPage())),
+                    ),
+                    _menuCard(
+                      context,
+                      "Histórico / Listar",
+                      Icons.analytics_outlined,
+                      Colors.orangeAccent,
+                          () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const HistoricoOSPage())),
+                    ),
+                    _menuCard(
+                      context,
+                      "Fluxo de Caixa",
+                      Icons.account_balance_wallet,
+                      Colors.purpleAccent,
+                          () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const FluxoCaixaPage())),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
