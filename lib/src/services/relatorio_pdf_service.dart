@@ -68,7 +68,7 @@ class RelatorioPdfService {
                   pw.Text('$mes / $ano',
                       style: pw.TextStyle(font: fontNormal, fontSize: 13, color: PdfColors.blueGrey200)),
                 ]),
-                pw.Text('FLUXO LIVRE',
+                pw.Text('AF Motors & Serviços',
                     style: pw.TextStyle(font: fontBold, fontSize: 14, color: PdfColors.blueAccent)),
               ],
             ),
@@ -193,7 +193,7 @@ class RelatorioPdfService {
           // ── RODAPÉ ────────────────────────────────────────────
           pw.Divider(),
           pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Text('Fluxo Livre OS — Relatório gerado automaticamente',
+            pw.Text('AF Motors & Serviços — Relatório gerado automaticamente',
                 style: pw.TextStyle(font: fontNormal, fontSize: 8, color: PdfColors.grey)),
             pw.Text('Saldo: R\$ ${saldo.toStringAsFixed(2)}',
                 style: pw.TextStyle(

@@ -97,7 +97,7 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
   String _formatarData(dynamic ts) {
     if (ts == null) return '-';
     final d = (ts as Timestamp).toDate();
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+    return '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year}';
   }
 
   @override
@@ -133,7 +133,7 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                 indicatorColor: Colors.blueAccent,
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white38,
-                labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                 tabs: const [
                   Tab(text: "EM ABERTO"),
                   Tab(text: "FINALIZADAS"),
@@ -141,9 +141,11 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.attach_money, size: 14, color: Colors.orangeAccent),
-                        SizedBox(width: 2),
-                        Text("A RECEBER", style: TextStyle(color: Colors.orangeAccent, fontSize: 12)),
+                        Icon(Icons.attach_money, size: 13, color: Colors.orangeAccent),
+                        SizedBox(width: 3),
+                        Text("A RECEBER",
+                            style: TextStyle(
+                                color: Colors.orangeAccent, fontSize: 11)),
                       ],
                     ),
                   ),
@@ -202,16 +204,15 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
     );
   }
 
-  Widget _listaOS(List<QueryDocumentSnapshot> lista, {bool destaqueAReceber = false}) {
+  Widget _listaOS(List<QueryDocumentSnapshot> lista,
+      {bool destaqueAReceber = false}) {
     if (lista.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              destaqueAReceber ? Icons.check_circle_outline : Icons.inbox,
-              size: 56, color: Colors.white24,
-            ),
+            Icon(destaqueAReceber ? Icons.check_circle_outline : Icons.inbox,
+                size: 56, color: Colors.white24),
             const SizedBox(height: 12),
             Text(
               destaqueAReceber ? 'Tudo recebido! 🎉' : 'Nenhuma OS encontrada.',
@@ -242,7 +243,7 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
               const Icon(Icons.attach_money, color: Colors.orangeAccent, size: 18),
               const SizedBox(width: 8),
               Text(
-                '${lista.length} OS • Total: R\$ ${totalAReceber.toStringAsFixed(2)}',
+                '${lista.length} OS • Total a receber: R\$ ${totalAReceber.toStringAsFixed(2)}',
                 style: const TextStyle(
                     color: Colors.orangeAccent,
                     fontWeight: FontWeight.bold,
@@ -250,6 +251,7 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
               ),
             ]),
           ),
+
         Expanded(
           child: ListView.builder(
             itemCount: lista.length,
@@ -263,7 +265,7 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
               final total        = ((os['valor_pecas']   as num?)?.toDouble() ?? 0) +
                   ((os['valor_servico'] as num?)?.toDouble() ?? 0);
               final numeroOS     = os['numero_os'] as String?;
-              final cliente      = os['cliente_nome'] ?? 'Sem nome';
+              final nomeCliente  = os['cliente_nome'] ?? 'Sem nome';
               final equipamento  = os['equipamento']  ?? '';
 
               return Card(
@@ -275,7 +277,7 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                 )
                     : null,
                 child: ExpansionTile(
-                  // Barra colorida no lado esquerdo
+                  // ── Barra colorida lateral ──
                   leading: Container(
                     width: 12, height: 40,
                     decoration: BoxDecoration(
@@ -285,71 +287,77 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  // Título em coluna para não brigar com o nome
-                  title: Column(
+
+                  // ── Título: nome do cliente (linha completa) ──
+                  title: Text(
+                    nomeCliente,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  // ── Subtítulo: número + equipamento + status + badge ──
+                  subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Linha 1: número + badge (pequenos, acima do nome)
-                      Row(
-                        children: [
-                          if (numeroOS != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              margin: const EdgeInsets.only(right: 6, bottom: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.blueAccent.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                    color: Colors.blueAccent.withValues(alpha: 0.5)),
-                              ),
-                              child: Text(
-                                numeroOS,
+                      // Linha 1: número da OS + equipamento
+                      Row(children: [
+                        if (numeroOS != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
+                            margin: const EdgeInsets.only(right: 6, top: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                  color: Colors.blueAccent.withValues(alpha: 0.5)),
+                            ),
+                            child: Text(numeroOS,
                                 style: const TextStyle(
                                     color: Colors.blueAccent,
                                     fontSize: 10,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          if (isFinalizado && !destaqueAReceber)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: foiRecebido
-                                    ? Colors.green.withValues(alpha: 0.2)
-                                    : Colors.orange.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                    color: foiRecebido
-                                        ? Colors.greenAccent
-                                        : Colors.orangeAccent),
-                              ),
-                              child: Text(
-                                foiRecebido ? '✓ Recebido' : '⏳ A receber',
-                                style: TextStyle(
-                                    color: foiRecebido
-                                        ? Colors.greenAccent
-                                        : Colors.orangeAccent,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
+                                    fontWeight: FontWeight.bold)),
+                          ),
                         ],
-                      ),
-                      // Linha 2: nome do cliente — linha inteira livre
-                      Text(
-                        cliente,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 15),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        Expanded(
+                          child: Text(
+                            '$equipamento • $statusAtual',
+                            style: const TextStyle(fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ]),
+                      // Linha 2: badge de pagamento (só em finalizadas, fora da aba A Receber)
+                      if (isFinalizado && !destaqueAReceber) ...[
+                        const SizedBox(height: 3),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: foiRecebido
+                                ? Colors.green.withValues(alpha: 0.2)
+                                : Colors.orange.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: foiRecebido
+                                    ? Colors.greenAccent
+                                    : Colors.orangeAccent),
+                          ),
+                          child: Text(
+                            foiRecebido ? '✓ Recebido' : '⏳ A receber',
+                            style: TextStyle(
+                                color: foiRecebido
+                                    ? Colors.greenAccent
+                                    : Colors.orangeAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
-                  // Subtítulo: equipamento + status
-                  subtitle: Text(
-                    '$equipamento • $statusAtual',
-                    style: const TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+
+                  // ── Ícone direito ──
                   trailing: Icon(
                     destaqueAReceber
                         ? Icons.attach_money
@@ -358,6 +366,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                         ? Colors.orangeAccent
                         : _getStatusColor(statusAtual),
                   ),
+
+                  // ── Conteúdo expandido ──
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -369,7 +379,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
 
                           if ((os['pecas_detalhes'] as List?)?.isNotEmpty == true) ...[
                             const Text('Peças:',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
                             ...(os['pecas_detalhes'] as List).map((p) {
                               final qtd   = (p['qtd']   as num?)?.toInt()    ?? 1;
                               final preco = (p['preco'] as num?)?.toDouble() ?? 0;
@@ -377,7 +388,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                                 padding: const EdgeInsets.only(left: 8, top: 2),
                                 child: Text(
                                   '${qtd > 1 ? "${qtd}x " : ""}${p['nome']} — R\$ ${(preco * qtd).toStringAsFixed(2)}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.white70),
                                 ),
                               );
                             }),
@@ -386,12 +398,14 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
 
                           if ((os['servicos_detalhes'] as List?)?.isNotEmpty == true) ...[
                             const Text('Serviços:',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
                             ...(os['servicos_detalhes'] as List).map((s) => Padding(
                               padding: const EdgeInsets.only(left: 8, top: 2),
                               child: Text(
                                 '${s['nome']} — R\$ ${(s['preco'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                                style: const TextStyle(fontSize: 12, color: Colors.white70),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.white70),
                               ),
                             )),
                             const SizedBox(height: 6),
@@ -403,7 +417,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                             children: [
                               Row(children: [
                                 IconButton(
-                                  icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                                  icon: const Icon(Icons.picture_as_pdf,
+                                      color: Colors.red),
                                   tooltip: 'Enviar PDF',
                                   onPressed: () => _abrirPDF(os),
                                 ),
@@ -412,11 +427,13 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                                   tooltip: 'Editar OS',
                                   onPressed: () => Navigator.push(context,
                                       MaterialPageRoute(
-                                        builder: (_) => OrdemServicoPage(osExistente: osDoc),
+                                        builder: (_) => OrdemServicoPage(
+                                            osExistente: osDoc),
                                       )),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.grey),
                                   tooltip: 'Excluir OS',
                                   onPressed: () => _confirmarExclusao(
                                       osDoc.id, os['cliente_nome'] ?? ''),
@@ -446,7 +463,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
                                 'Recebido em: ${_formatarData(os['data_recebimento'])}',
-                                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 11),
                               ),
                             ),
                         ],
