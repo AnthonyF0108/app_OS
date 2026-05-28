@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'lista_clientes_page.dart';
 import 'ordem_servico.dart';
 import 'historico_os_page.dart';
+import 'fluxo_caixa_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -14,7 +15,7 @@ class HomePage extends StatelessWidget {
         centerTitle: true,
         backgroundColor: const Color(0xFF000033),
         foregroundColor: Colors.white,
-        elevation: 0, // Removi a elevação para combinar com o gradiente
+        elevation: 0,
       ),
       body: Container(
         width: double.infinity,
@@ -35,24 +36,35 @@ class HomePage extends StatelessWidget {
             children: [
               _menuCard(
                 context,
-                "Cadastrar Cliente",
+                "Clientes",
                 Icons.person_add_alt_1,
                 Colors.blueAccent,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ListaClientesPage())),
+                    () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ListaClientesPage())),
               ),
               _menuCard(
                 context,
                 "Nova OS",
                 Icons.note_add,
                 Colors.greenAccent,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OrdemServicoPage())),
+                    () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const OrdemServicoPage())),
               ),
               _menuCard(
                 context,
                 "Histórico / Listar",
                 Icons.analytics_outlined,
                 Colors.orangeAccent,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoricoOSPage())),
+                    () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const HistoricoOSPage())),
+              ),
+              _menuCard(
+                context,
+                "Fluxo de Caixa",
+                Icons.account_balance_wallet,
+                Colors.purpleAccent,
+                    () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const FluxoCaixaPage())),
               ),
             ],
           ),
@@ -61,16 +73,17 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _menuCard(BuildContext context, String titulo, IconData icone, Color cor, VoidCallback acao) {
+  Widget _menuCard(BuildContext context, String titulo, IconData icone,
+      Color cor, VoidCallback acao) {
     return InkWell(
       onTap: acao,
       borderRadius: BorderRadius.circular(20),
       child: Card(
-        color: Colors.white.withOpacity(0.08), // Efeito Glassmorphism
+        color: Colors.white.withOpacity(0.08),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: cor.withOpacity(0.4), width: 1.5), // Borda sutil com a cor do ícone
+          side: BorderSide(color: cor.withOpacity(0.4), width: 1.5),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -90,10 +103,9 @@ class HomePage extends StatelessWidget {
                 titulo,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13),
               ),
             ),
           ],
