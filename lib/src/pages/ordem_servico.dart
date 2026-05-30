@@ -62,19 +62,17 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
 
   // ── GERAR NÚMERO DA OS ─────────────────────────────────────────────────────
   Future<String> _gerarNumeroOS() async {
-    final ano = DateTime.now().year.toString();
+    final ano  = DateTime.now().year.toString();
     final snap = await FirebaseFirestore.instance
         .collection('ordens')
         .where('ano_os', isEqualTo: ano)
         .get();
-
     int maior = 0;
     for (final doc in snap.docs) {
       final seq = doc.data()['sequencial_os'] as int? ?? 0;
       if (seq > maior) maior = seq;
     }
-    final sequencial = (maior + 1).toString().padLeft(3, '0');
-    return 'OS-$ano-$sequencial';
+    return 'OS-$ano-${(maior + 1).toString().padLeft(3, '0')}';
   }
 
   // ── PESQUISAR CLIENTE ──────────────────────────────────────────────────────
@@ -90,84 +88,217 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
     }
   }
 
-  // ── ADICIONAR PEÇA ─────────────────────────────────────────────────────────
-  void _adicionarPeca() {
-    final nomeCtrl  = TextEditingController();
-    final precoCtrl = TextEditingController();
-    final qtdCtrl   = TextEditingController(text: '1');
+  // ── DIALOG DE PEÇA (novo ou editar) ───────────────────────────────────────
+  void _dialogPeca({Map<String, dynamic>? pecaExistente, int? indice}) {
+    final nomeCtrl  = TextEditingController(text: pecaExistente?['nome']  ?? '');
+    final precoCtrl = TextEditingController(
+        text: pecaExistente != null
+            ? (pecaExistente['preco'] as num?)?.toStringAsFixed(2) ?? ''
+            : '');
+    final qtdCtrl   = TextEditingController(
+        text: (pecaExistente?['qtd'] ?? 1).toString());
+    final custoCtrl = TextEditingController(
+        text: pecaExistente != null && pecaExistente['custo'] != null
+            ? (pecaExistente['custo'] as num).toStringAsFixed(2)
+            : '');
+
+    bool lancarGasto = pecaExistente?['lancar_gasto'] == true;
+    final editando   = indice != null;
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Adicionar Peça"),
-        content: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: nomeCtrl, autofocus: true,
-                decoration: const InputDecoration(labelText: "Nome da peça", prefixIcon: Icon(Icons.build))),
-            const SizedBox(height: 8),
-            TextField(controller: precoCtrl,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: Text(editando ? "Editar Peça" : "Adicionar Peça"),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+              TextField(
+                controller: nomeCtrl,
+                autofocus: !editando,
+                decoration: const InputDecoration(
+                    labelText: "Nome da peça",
+                    prefixIcon: Icon(Icons.build)),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: precoCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: "Preço unitário (R\$)", prefixIcon: Icon(Icons.attach_money))),
-            const SizedBox(height: 8),
-            TextField(controller: qtdCtrl, keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Quantidade", prefixIcon: Icon(Icons.numbers))),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR")),
-          ElevatedButton(
-            onPressed: () {
-              if (nomeCtrl.text.trim().isEmpty) return;
-              setState(() => pecasSelecionadas.add({
-                'nome':  nomeCtrl.text.trim(),
-                'preco': double.tryParse(precoCtrl.text.replaceAll(',', '.')) ?? 0.0,
-                'qtd':   int.tryParse(qtdCtrl.text) ?? 1,
-              }));
-              Navigator.pop(context);
-            },
-            child: const Text("ADICIONAR"),
+                decoration: const InputDecoration(
+                    labelText: "Preço de venda unitário (R\$)",
+                    prefixIcon: Icon(Icons.attach_money)),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: qtdCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                    labelText: "Quantidade",
+                    prefixIcon: Icon(Icons.numbers)),
+              ),
+
+              const SizedBox(height: 12),
+              const Divider(),
+
+              // ── CHECKBOX GASTO ─────────────────────────────────────
+              InkWell(
+                onTap: () => setDialog(() => lancarGasto = !lancarGasto),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: lancarGasto
+                        ? Colors.orange.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: lancarGasto
+                          ? Colors.orangeAccent
+                          : Colors.white24,
+                    ),
+                  ),
+                  child: Row(children: [
+                    Checkbox(
+                      value: lancarGasto,
+                      activeColor: Colors.orangeAccent,
+                      onChanged: (v) =>
+                          setDialog(() => lancarGasto = v ?? false),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        "Lançar custo no Fluxo de Caixa",
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+
+              // Campo de custo (aparece só se checkbox marcado)
+              if (lancarGasto) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: custoCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true),
+                  decoration: InputDecoration(
+                    labelText: "Custo de compra da peça (R\$)",
+                    prefixIcon: const Icon(Icons.shopping_cart,
+                        color: Colors.orangeAccent),
+                    helperText:
+                    "Será lançado como saída ao salvar a OS",
+                    filled: true,
+                    fillColor: Colors.orange.withValues(alpha: 0.07),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ]),
           ),
-        ],
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("CANCELAR")),
+            ElevatedButton(
+              onPressed: () {
+                if (nomeCtrl.text.trim().isEmpty) return;
+                final novaPeca = {
+                  'nome':  nomeCtrl.text.trim(),
+                  'preco': double.tryParse(
+                      precoCtrl.text.replaceAll(',', '.')) ?? 0.0,
+                  'qtd':   int.tryParse(qtdCtrl.text) ?? 1,
+                  'lancar_gasto': lancarGasto,
+                  if (lancarGasto)
+                    'custo': double.tryParse(
+                        custoCtrl.text.replaceAll(',', '.')) ?? 0.0,
+                };
+                setState(() {
+                  if (editando) {
+                    pecasSelecionadas[indice!] = novaPeca;
+                  } else {
+                    pecasSelecionadas.add(novaPeca);
+                  }
+                });
+                Navigator.pop(context);
+              },
+              child: Text(editando ? "SALVAR" : "ADICIONAR"),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // ── ADICIONAR SERVIÇO ──────────────────────────────────────────────────────
-  void _adicionarServico() {
-    final nomeCtrl  = TextEditingController();
-    final precoCtrl = TextEditingController();
-    final descCtrl  = TextEditingController();
+  // ── DIALOG DE SERVIÇO (novo ou editar) ────────────────────────────────────
+  void _dialogServico({Map<String, dynamic>? servicoExistente, int? indice}) {
+    final nomeCtrl  = TextEditingController(
+        text: servicoExistente?['nome'] ?? '');
+    final precoCtrl = TextEditingController(
+        text: servicoExistente != null
+            ? (servicoExistente['preco'] as num?)?.toStringAsFixed(2) ?? ''
+            : '');
+    final descCtrl  = TextEditingController(
+        text: servicoExistente?['descricao'] ?? '');
+
+    final editando = indice != null;
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Adicionar Serviço"),
+        title: Text(editando ? "Editar Serviço" : "Adicionar Serviço"),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: nomeCtrl, autofocus: true,
-                decoration: const InputDecoration(labelText: "Nome do serviço", prefixIcon: Icon(Icons.miscellaneous_services))),
+            TextField(
+              controller: nomeCtrl,
+              autofocus: !editando,
+              decoration: const InputDecoration(
+                  labelText: "Nome do serviço",
+                  prefixIcon: Icon(Icons.miscellaneous_services)),
+            ),
             const SizedBox(height: 8),
-            TextField(controller: precoCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: "Preço (R\$)", prefixIcon: Icon(Icons.attach_money))),
+            TextField(
+              controller: precoCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: "Preço (R\$)",
+                  prefixIcon: Icon(Icons.attach_money)),
+            ),
             const SizedBox(height: 8),
-            TextField(controller: descCtrl,
-                decoration: const InputDecoration(labelText: "Obs (opcional)", prefixIcon: Icon(Icons.description))),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(
+                  labelText: "Obs (opcional)",
+                  prefixIcon: Icon(Icons.description)),
+            ),
           ]),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR")),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("CANCELAR")),
           ElevatedButton(
             onPressed: () {
               if (nomeCtrl.text.trim().isEmpty) return;
-              setState(() => servicosSelecionados.add({
+              final novoServico = {
                 'nome':      nomeCtrl.text.trim(),
-                'preco':     double.tryParse(precoCtrl.text.replaceAll(',', '.')) ?? 0.0,
+                'preco':     double.tryParse(
+                    precoCtrl.text.replaceAll(',', '.')) ?? 0.0,
                 'descricao': descCtrl.text.trim(),
-              }));
+              };
+              setState(() {
+                if (editando) {
+                  servicosSelecionados[indice!] = novoServico;
+                } else {
+                  servicosSelecionados.add(novoServico);
+                }
+              });
               Navigator.pop(context);
             },
-            child: const Text("ADICIONAR"),
+            child: Text(editando ? "SALVAR" : "ADICIONAR"),
           ),
         ],
       ),
@@ -183,9 +314,9 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
     }
     if (!_formKey.currentState!.validate()) return;
 
-    String numOS       = numeroOS ?? '';
-    int    sequencial  = 0;
-    String ano         = DateTime.now().year.toString();
+    String numOS      = numeroOS ?? '';
+    int    sequencial = 0;
+    String ano        = DateTime.now().year.toString();
 
     if (widget.osExistente == null) {
       numOS      = await _gerarNumeroOS();
@@ -232,13 +363,39 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
             .update(dadosParaSalvar);
       } else {
         dadosParaSalvar['data_abertura'] = FieldValue.serverTimestamp();
-        await FirebaseFirestore.instance.collection('ordens').add(dadosParaSalvar);
+        await FirebaseFirestore.instance
+            .collection('ordens')
+            .add(dadosParaSalvar);
       }
+
+      // ── LANÇA GASTOS DE PEÇAS NO FLUXO DE CAIXA ─────────────────────
+      final pecasComGasto = pecasSelecionadas
+          .where((p) => p['lancar_gasto'] == true)
+          .toList();
+
+      for (final peca in pecasComGasto) {
+        final custo = (peca['custo'] as num?)?.toDouble() ?? 0;
+        if (custo <= 0) continue;
+        final qtd   = (peca['qtd'] as num?)?.toInt() ?? 1;
+
+        await FirebaseFirestore.instance.collection('transacoes').add({
+          'tipo':            'Saída',
+          'categoria':       'Fornecedor',
+          'descricao':       'Peça: ${peca['nome']} (${numOS.isNotEmpty ? numOS : "OS"})',
+          'valor':           custo * qtd,
+          'forma_pagamento': 'Outros',
+          'data':            Timestamp.now(),
+          'os_numero':       numOS,
+          'criado_em':       FieldValue.serverTimestamp(),
+        });
+      }
+
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro ao salvar: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Erro ao salvar: $e'),
+            backgroundColor: Colors.red));
       }
     }
   }
@@ -266,48 +423,140 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
+              // ── CLIENTE ───────────────────────────────────────────────
               _titulo("Cliente"),
               _seletor(nomeClienteExibicao, Icons.person, _pesquisarCliente),
               const SizedBox(height: 20),
 
+              // ── EQUIPAMENTO ───────────────────────────────────────────
               _titulo("Equipamento"),
               _campo(equipamentoController, 'Aparelho / Modelo', Icons.smartphone),
               _campo(defeitoController,     'Defeito / Relato',  Icons.error_outline),
               const SizedBox(height: 20),
 
+              // ── PEÇAS ─────────────────────────────────────────────────
               _titulo("Peças Utilizadas"),
               ...pecasSelecionadas.asMap().entries.map((e) {
                 final i   = e.key;
                 final p   = e.value;
                 final sub = ((p['preco'] as num?)?.toDouble() ?? 0) *
                     ((p['qtd']   as num?)?.toInt()    ?? 1);
-                return _itemCard(
-                  icone: Icons.build_circle, cor: Colors.orangeAccent,
-                  titulo: (p['qtd'] ?? 1) > 1 ? "${p['qtd']}x ${p['nome']}" : p['nome'],
-                  valor: sub,
-                  onDelete: () => setState(() => pecasSelecionadas.removeAt(i)),
+                final temGasto = p['lancar_gasto'] == true;
+
+                return Card(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  margin: const EdgeInsets.only(bottom: 6),
+                  shape: temGasto
+                      ? RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(
+                        color: Colors.orangeAccent, width: 1),
+                  )
+                      : null,
+                  child: ListTile(
+                    onTap: () => _dialogPeca(
+                        pecaExistente: p, indice: i),
+                    leading: Icon(Icons.build_circle,
+                        color: temGasto
+                            ? Colors.orangeAccent
+                            : Colors.orangeAccent),
+                    title: Text(
+                      (p['qtd'] ?? 1) > 1
+                          ? "${p['qtd']}x ${p['nome']}"
+                          : p['nome'],
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("R\$ ${sub.toStringAsFixed(2)}",
+                            style: const TextStyle(
+                                color: Colors.greenAccent)),
+                        if (temGasto)
+                          Row(children: [
+                            const Icon(Icons.arrow_downward,
+                                size: 11, color: Colors.orangeAccent),
+                            const SizedBox(width: 3),
+                            Text(
+                              "Custo: R\$ ${((p['custo'] as num?)?.toDouble() ?? 0) * ((p['qtd'] as num?)?.toInt() ?? 1).toDouble()}"
+                                  .replaceAllMapped(
+                                  RegExp(r'(\.\d{3,})'),
+                                      (m) => (double.tryParse(
+                                      m.group(0)!) ??
+                                      0)
+                                      .toStringAsFixed(2)
+                                      .substring(1)),
+                              style: const TextStyle(
+                                  color: Colors.orangeAccent,
+                                  fontSize: 11),
+                            ),
+                          ]),
+                      ],
+                    ),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (temGasto)
+                        const Tooltip(
+                          message: 'Lança gasto no caixa',
+                          child: Icon(Icons.account_balance_wallet,
+                              size: 16, color: Colors.orangeAccent),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Colors.redAccent, size: 20),
+                        onPressed: () =>
+                            setState(() => pecasSelecionadas.removeAt(i)),
+                      ),
+                    ]),
+                  ),
                 );
               }),
-              _seletor("+ Adicionar Peça", Icons.add_box, _adicionarPeca,
+              _seletor("+ Adicionar Peça", Icons.add_box,
+                      () => _dialogPeca(),
                   cor: Colors.orangeAccent),
               const SizedBox(height: 20),
 
+              // ── SERVIÇOS ──────────────────────────────────────────────
               _titulo("Serviços"),
               ...servicosSelecionados.asMap().entries.map((e) {
                 final i = e.key;
                 final s = e.value;
-                return _itemCard(
-                  icone: Icons.miscellaneous_services, cor: Colors.blueAccent,
-                  titulo: s['nome'],
-                  subtitulo: (s['descricao'] ?? '').toString().isNotEmpty ? s['descricao'] : null,
-                  valor: (s['preco'] as num?)?.toDouble() ?? 0,
-                  onDelete: () => setState(() => servicosSelecionados.removeAt(i)),
+                return Card(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    onTap: () => _dialogServico(
+                        servicoExistente: s, indice: i),
+                    leading: const Icon(Icons.miscellaneous_services,
+                        color: Colors.blueAccent),
+                    title: Text(s['nome'],
+                        style: const TextStyle(color: Colors.white)),
+                    subtitle: (s['descricao'] ?? '').toString().isNotEmpty
+                        ? Text(s['descricao'],
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12))
+                        : null,
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(
+                          "R\$ ${(s['preco'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}",
+                          style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Colors.redAccent, size: 20),
+                        onPressed: () => setState(
+                                () => servicosSelecionados.removeAt(i)),
+                      ),
+                    ]),
+                  ),
                 );
               }),
               _seletor("+ Adicionar Serviço", Icons.miscellaneous_services,
-                  _adicionarServico, cor: Colors.blueAccent),
+                      () => _dialogServico(),
+                  cor: Colors.blueAccent),
               const SizedBox(height: 20),
 
+              // ── RESUMO FINANCEIRO ─────────────────────────────────────
               _titulo("Resumo Financeiro"),
               _linhaValor("Total Peças",    totalPecas,    Colors.orangeAccent),
               _linhaValor("Total Serviços", totalServicos, Colors.blueAccent),
@@ -317,30 +566,51 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
                 decoration: BoxDecoration(
                   color: Colors.green.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+                  border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.4)),
                 ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text("TOTAL GERAL",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text("R\$ ${totalGeral.toStringAsFixed(2)}",
-                      style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 22)),
-                ]),
+                child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("TOTAL GERAL",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16)),
+                      Text("R\$ ${totalGeral.toStringAsFixed(2)}",
+                          style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 22)),
+                    ]),
               ),
               const SizedBox(height: 8),
 
               DropdownButtonFormField<String>(
                 value: formaPagamento,
-                decoration: const InputDecoration(labelText: 'Pagamento', icon: Icon(Icons.credit_card)),
+                decoration: const InputDecoration(
+                    labelText: 'Pagamento',
+                    icon: Icon(Icons.credit_card)),
                 items: ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito']
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    .map((e) =>
+                    DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
                 onChanged: (v) => setState(() => formaPagamento = v!),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: status,
-                decoration: const InputDecoration(labelText: 'Status', icon: Icon(Icons.sync)),
-                items: ['Orçamento', 'Aguardando Aprovação', 'Aprovado', 'Finalizado']
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                decoration: const InputDecoration(
+                    labelText: 'Status', icon: Icon(Icons.sync)),
+                items: [
+                  'Orçamento',
+                  'Aguardando Aprovação',
+                  'Aprovado',
+                  'Finalizado'
+                ]
+                    .map((e) =>
+                    DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
                 onChanged: (v) => setState(() => status = v!),
               ),
 
@@ -361,13 +631,19 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
     );
   }
 
+  // ── WIDGETS AUXILIARES ─────────────────────────────────────────────────────
+
   Widget _titulo(String texto) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Text(texto,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+        style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.blueAccent)),
   );
 
-  Widget _seletor(String texto, IconData icone, VoidCallback onTap, {Color cor = Colors.white70}) =>
+  Widget _seletor(String texto, IconData icone, VoidCallback onTap,
+      {Color cor = Colors.white70}) =>
       InkWell(
         onTap: onTap,
         child: Container(
@@ -389,32 +665,11 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
         padding: const EdgeInsets.only(bottom: 12),
         child: TextFormField(
           controller: ctrl,
-          decoration: InputDecoration(labelText: label, prefixIcon: Icon(icone), border: const OutlineInputBorder()),
+          decoration: InputDecoration(
+              labelText: label,
+              prefixIcon: Icon(icone),
+              border: const OutlineInputBorder()),
           validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
-        ),
-      );
-
-  Widget _itemCard({
-    required IconData icone, required Color cor, required String titulo,
-    String? subtitulo, required double valor, required VoidCallback onDelete,
-  }) =>
-      Card(
-        color: Colors.white.withValues(alpha: 0.05),
-        margin: const EdgeInsets.only(bottom: 6),
-        child: ListTile(
-          leading: Icon(icone, color: cor),
-          title: Text(titulo, style: const TextStyle(color: Colors.white)),
-          subtitle: subtitulo != null
-              ? Text(subtitulo, style: const TextStyle(color: Colors.white54, fontSize: 12))
-              : null,
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text("R\$ ${valor.toStringAsFixed(2)}",
-                style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-              onPressed: onDelete,
-            ),
-          ]),
         ),
       );
 
@@ -426,10 +681,13 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
       borderRadius: BorderRadius.circular(8),
       border: Border.all(color: cor.withValues(alpha: 0.2)),
     ),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: const TextStyle(color: Colors.white70)),
-      Text("R\$ ${valor.toStringAsFixed(2)}",
-          style: TextStyle(color: cor, fontWeight: FontWeight.bold)),
-    ]),
+    child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70)),
+          Text("R\$ ${valor.toStringAsFixed(2)}",
+              style: TextStyle(
+                  color: cor, fontWeight: FontWeight.bold)),
+        ]),
   );
 }
