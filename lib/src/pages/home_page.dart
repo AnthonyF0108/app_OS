@@ -1,21 +1,34 @@
 import 'package:flutter/material.dart';
+import '../core/app_constants.dart';
 import 'lista_clientes_page.dart';
 import 'ordem_servico.dart';
 import 'historico_os_page.dart';
 import 'fluxo_caixa_page.dart';
 import 'historico_veiculos_page.dart';
 import 'cadastro_veiculo_page.dart';
+import 'motos_leilao_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
+
+  // Dados dos menus: (título, ícone, cor, destino)
+  static final _menus = <_MenuItem>[
+    _MenuItem('Clientes',         Icons.person_add_alt_1,       Colors.blueAccent,   (_) => const ListaClientesPage()),
+    _MenuItem('Nova OS',          Icons.note_add,               Colors.greenAccent,  (_) => const OrdemServicoPage()),
+    _MenuItem('Histórico OS',     Icons.analytics_outlined,     Colors.orangeAccent, (_) => const HistoricoOSPage()),
+    _MenuItem('Fluxo de Caixa',   Icons.account_balance_wallet, Colors.purpleAccent, (_) => const FluxoCaixaPage()),
+    _MenuItem('Veículos',         Icons.directions_car,         Colors.cyanAccent,   (_) => const HistoricoVeiculosPage()),
+    _MenuItem('Novo Veículo',     Icons.add_road,               Colors.tealAccent,   (_) => const CadastroVeiculoPage()),
+    _MenuItem('Leilão de Motos',  Icons.two_wheeler,            Colors.amberAccent,  (_) => const MotosLeilaoPage()),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AF Motors & Serviços'),
+        title: const Text(AppStrings.appName),
         centerTitle: true,
-        backgroundColor: const Color(0xFF000033),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -26,7 +39,7 @@ class HomePage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [const Color(0xFF000033), Colors.blueGrey.shade900],
+            colors: [AppColors.primary, Colors.blueGrey.shade900],
           ),
         ),
         child: Padding(
@@ -34,82 +47,28 @@ class HomePage extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 15),
-
-              // ── LOGO DO ESCUDO (SEM ESCRITA) ──────────────────
               Center(
                 child: Image.asset(
                   'assets/logo.png',
-                  height: 160, // Ajuste o tamanho ideal na tela do dispositivo
+                  height: 140,
                   fit: BoxFit.contain,
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // ── GRID DE MENUS DO APP ──────────────────────────
               Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 15,
-                  mainAxisSpacing: 15,
-                  children: [
-                    _menuCard(
-                      context,
-                      "Clientes",
-                      Icons.person_add_alt_1,
-                      Colors.blueAccent,
-                          () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const ListaClientesPage())),
-                    ),
-                    _menuCard(
-                      context,
-                      "Nova OS",
-                      Icons.note_add,
-                      Colors.greenAccent,
-                          () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const OrdemServicoPage())),
-                    ),
-                    _menuCard(
-                      context,
-                      "Histórico / Listar",
-                      Icons.analytics_outlined,
-                      Colors.orangeAccent,
-                          () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const HistoricoOSPage())),
-                    ),
-                    _menuCard(
-                      context,
-                      "Fluxo de Caixa",
-                      Icons.account_balance_wallet,
-                      Colors.purpleAccent,
-                          () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const FluxoCaixaPage())),
-                    ),
-                    _menuCard(
-                      context,
-                      "Veículos",
-                      Icons.directions_car,
-                      Colors.cyanAccent,
-                          () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HistoricoVeiculosPage(),
-                        ),
-                      ),
-                    ),
-                    _menuCard(
-                      context,
-                      "Novo Veículo",
-                      Icons.add_road,
-                      Colors.tealAccent,
-                          () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CadastroVeiculoPage(),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 15,
+                    mainAxisSpacing: 15,
+                    // childAspectRatio ajustado para evitar overflow em telas pequenas
+                    childAspectRatio: 1.05,
+                  ),
+                  itemCount: _menus.length,
+                  itemBuilder: (context, index) {
+                    final item = _menus[index];
+                    return _MenuCard(item: item);
+                  },
                 ),
               ),
             ],
@@ -118,18 +77,38 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _menuCard(BuildContext context, String titulo, IconData icone,
-      Color cor, VoidCallback acao) {
+// ── DATA CLASS DO MENU ────────────────────────────────────────────────────────
+
+class _MenuItem {
+  final String titulo;
+  final IconData icone;
+  final Color cor;
+  final Widget Function(BuildContext) builder;
+
+  const _MenuItem(this.titulo, this.icone, this.cor, this.builder);
+}
+
+// ── CARD DO MENU ──────────────────────────────────────────────────────────────
+
+class _MenuCard extends StatelessWidget {
+  final _MenuItem item;
+
+  const _MenuCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
     return InkWell(
-      onTap: acao,
+      onTap: () => Navigator.push(
+          context, MaterialPageRoute(builder: item.builder)),
       borderRadius: BorderRadius.circular(20),
       child: Card(
         color: Colors.white.withOpacity(0.08),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: cor.withOpacity(0.4), width: 1.5),
+          side: BorderSide(color: item.cor.withOpacity(0.4), width: 1.5),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -137,21 +116,22 @@ class HomePage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: cor.withOpacity(0.15),
+                color: item.cor.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icone, size: 38, color: cor),
+              child: Icon(item.icone, size: 36, color: item.cor),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Text(
-                titulo,
+                item.titulo,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],

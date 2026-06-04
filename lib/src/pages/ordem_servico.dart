@@ -318,16 +318,22 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
     int    sequencial = 0;
     String ano        = DateTime.now().year.toString();
 
-    if (widget.osExistente == null) {
+    // Lê dados anteriores da OS (se for edição)
+    Map<String, dynamic> dadosAntigos = {};
+    if (widget.osExistente != null) {
+      dadosAntigos = widget.osExistente!.data() as Map<String, dynamic>;
+      sequencial   = dadosAntigos['sequencial_os'] ?? 0;
+      ano          = dadosAntigos['ano_os']        ?? ano;
+    } else {
       numOS      = await _gerarNumeroOS();
       sequencial = int.tryParse(numOS.split('-').last) ?? 0;
-    } else {
-      final d   = widget.osExistente!.data() as Map<String, dynamic>;
-      sequencial = d['sequencial_os'] ?? 0;
-      ano        = d['ano_os']        ?? ano;
     }
 
-    final dadosParaSalvar = {
+    // Flag que indica se os gastos de peças já foram lançados anteriormente
+    final gastosJaLancados = dadosAntigos['gastos_lancados'] == true;
+    final estaFinalizando  = status == 'Finalizado';
+
+    final dadosParaSalvar = <String, dynamic>{
       'numero_os':     numOS,
       'sequencial_os': sequencial,
       'ano_os':        ano,
@@ -355,42 +361,79 @@ class _OrdemServicoPageState extends State<OrdemServicoPage> {
       'ultima_atualizacao': FieldValue.serverTimestamp(),
     };
 
+    // Marca a OS como tendo os gastos lançados quando finalizar
+    if (estaFinalizando && !gastosJaLancados) {
+      dadosParaSalvar['gastos_lancados']    = true;
+      dadosParaSalvar['data_finalizacao']   = FieldValue.serverTimestamp();
+    }
+
     try {
+      String osId;
       if (widget.osExistente != null) {
+        osId = widget.osExistente!.id;
         await FirebaseFirestore.instance
             .collection('ordens')
-            .doc(widget.osExistente!.id)
+            .doc(osId)
             .update(dadosParaSalvar);
       } else {
         dadosParaSalvar['data_abertura'] = FieldValue.serverTimestamp();
-        await FirebaseFirestore.instance
+        final ref = await FirebaseFirestore.instance
             .collection('ordens')
             .add(dadosParaSalvar);
+        osId = ref.id;
       }
 
       // ── LANÇA GASTOS DE PEÇAS NO FLUXO DE CAIXA ─────────────────────
-      final pecasComGasto = pecasSelecionadas
-          .where((p) => p['lancar_gasto'] == true)
-          .toList();
+      // Regras:
+      //   1. Só lança quando o status for "Finalizado"
+      //   2. Só lança UMA VEZ (flag gastos_lancados protege contra edições futuras)
+      if (estaFinalizando && !gastosJaLancados) {
+        final pecasComGasto = pecasSelecionadas
+            .where((p) => p['lancar_gasto'] == true)
+            .toList();
 
-      for (final peca in pecasComGasto) {
-        final custo = (peca['custo'] as num?)?.toDouble() ?? 0;
-        if (custo <= 0) continue;
-        final qtd   = (peca['qtd'] as num?)?.toInt() ?? 1;
+        for (final peca in pecasComGasto) {
+          final custo = (peca['custo'] as num?)?.toDouble() ?? 0;
+          if (custo <= 0) continue;
+          final qtd = (peca['qtd'] as num?)?.toInt() ?? 1;
 
-        await FirebaseFirestore.instance.collection('transacoes').add({
-          'tipo':            'Saída',
-          'categoria':       'Fornecedor',
-          'descricao':       'Peça: ${peca['nome']} (${numOS.isNotEmpty ? numOS : "OS"})',
-          'valor':           custo * qtd,
-          'forma_pagamento': 'Outros',
-          'data':            Timestamp.now(),
-          'os_numero':       numOS,
-          'criado_em':       FieldValue.serverTimestamp(),
-        });
+          await FirebaseFirestore.instance.collection('transacoes').add({
+            'tipo':            'Saída',
+            'categoria':       'Fornecedor',
+            'descricao':       'Peça: ${peca['nome']} ($numOS)',
+            'valor':           custo * qtd,
+            'forma_pagamento': 'Outros',
+            'data':            Timestamp.now(),
+            'os_numero':       numOS,
+            'os_id':           osId,
+            'criado_em':       FieldValue.serverTimestamp(),
+          });
+        }
       }
 
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+
+      // Avisa o usuário sobre o que aconteceu ao finalizar
+      if (estaFinalizando && !gastosJaLancados) {
+        final totalGastos = pecasSelecionadas
+            .where((p) => p['lancar_gasto'] == true)
+            .fold<double>(0, (sum, p) =>
+        sum +
+            ((p['custo'] as num?)?.toDouble() ?? 0) *
+                ((p['qtd'] as num?)?.toInt() ?? 1));
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            totalGastos > 0
+                ? 'OS finalizada! Gasto de R\$ ${totalGastos.toStringAsFixed(2)} lançado no Fluxo de Caixa.'
+                : 'OS finalizada!',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ));
+      }
+
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

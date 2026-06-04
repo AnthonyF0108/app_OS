@@ -1,42 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'src/pages/ordem_servico.dart';
-import 'src/pages/home_page.dart';
 import 'firebase_options.dart';
+import '../src/pages/home_page.dart';
 
 void main() async {
-  // Garante a inicialização dos bindings do Flutter
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    // Inicializa o Firebase antes de rodar o App
-    await Firebase.initializeApp();
-  } catch (e) {
-    print("Erro crítico ao iniciar Firebase: $e");
-  }
+  // CORREÇÃO: passar DefaultFirebaseOptions.currentPlatform evita
+  // erro silencioso de "app already initialized" em hot-restart
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
-  runApp(const AppFluxoLivre());
+  runApp(const AppAFMotors());
 }
 
-class AppFluxoLivre extends StatelessWidget {
-  const AppFluxoLivre({super.key});
+class AppAFMotors extends StatelessWidget {
+  const AppAFMotors({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Fluxo Livre OS',
+      title: 'AF Motors & Serviços',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // Definindo uma cor base escura para combinar com seu logo
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF000033),
           brightness: Brightness.dark,
         ),
+        // Garante que todos os AlertDialogs herdem o tema escuro
+        dialogTheme: DialogThemeData(
+          backgroundColor: const Color(0xFF1A1A2E),
+          titleTextStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          contentTextStyle: const TextStyle(color: Colors.white70),
+        ),
         useMaterial3: true,
       ),
-      // Aqui você escolhe:
-      // Se quiser ir direto para o formulário, use OrdemServicoPage()
-      // Se quiser a tela inicial com o alien e botões, use HomePage()
       home: const HomePage(),
     );
   }
