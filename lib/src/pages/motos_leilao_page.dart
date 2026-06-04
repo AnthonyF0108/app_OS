@@ -25,7 +25,18 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
         text: dados != null
             ? (dados['valor_compra'] as num?)?.toStringAsFixed(2) ?? ''
             : '');
+    final fipeCtrl   = TextEditingController(
+        text: dados != null
+            ? (dados['valor_fipe'] as num?)?.toStringAsFixed(2) ?? ''
+            : '');
+    final vendaCtrl  = TextEditingController(
+        text: dados != null
+            ? (dados['valor_venda'] as num?)?.toStringAsFixed(2) ?? ''
+            : '');
     final obsCtrl = TextEditingController(text: dados?['observacoes'] ?? '');
+
+    // Status: Padrão é 'Em conserto' se for nova, ou pega o valor do banco
+    String statusSelecionado = dados?['status'] ?? 'Em conserto';
 
     // Peças já salvas
     List<Map<String, dynamic>> pecas = dados?['pecas'] != null
@@ -74,6 +85,24 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                   ]),
                   const SizedBox(height: 20),
 
+                  // ── STATUS DA MOTO ──────────────────────────────────────
+                  DropdownButtonFormField<String>(
+                    value: statusSelecionado,
+                    dropdownColor: const Color(0xFF1A1A2E),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _decModal('Status do Veículo', Icons.info_outline),
+                    items: const [
+                      DropdownMenuItem(value: 'Em conserto', child: Text('Em conserto')),
+                      DropdownMenuItem(value: 'Finalizada', child: Text('Finalizada')),
+                    ],
+                    onChanged: (novoStatus) {
+                      if (novoStatus != null) {
+                        setModal(() => statusSelecionado = novoStatus);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
                   // ── DADOS DA MOTO ───────────────────────────────────────
                   _inputModal(modeloCtrl, 'Modelo (ex: Honda CG 160)',
                       Icons.directions_bike),
@@ -101,6 +130,33 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                     ),
                   ]),
                   const SizedBox(height: 10),
+
+                  // ── VALORES FIPE E VENDA ─────────────────────────────────
+                  Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: fipeCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _decModal(
+                            'Valor FIPE (R\$)', Icons.bar_chart),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: vendaCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _decModal(
+                            'Vendido por (R\$)', Icons.monetization_on),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+
                   _inputModal(obsCtrl, 'Observações', Icons.notes,
                       maxLines: 2),
 
@@ -243,10 +299,13 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                           'ano':    anoCtrl.text.trim(),
                           'placa':  placaCtrl.text.trim().toUpperCase(),
                           'cor':    corCtrl.text.trim(),
+                          'status': statusSelecionado,
                           'valor_compra': double.tryParse(
-                              compraCtrl.text
-                                  .replaceAll(',', '.')) ??
-                              0.0,
+                              compraCtrl.text.replaceAll(',', '.')) ?? 0.0,
+                          'valor_fipe': double.tryParse(
+                              fipeCtrl.text.replaceAll(',', '.')) ?? 0.0,
+                          'valor_venda': double.tryParse(
+                              vendaCtrl.text.replaceAll(',', '.')) ?? 0.0,
                           'observacoes': obsCtrl.text.trim(),
                           'pecas':       pecas,
                           'custo_total': custoTotal,
@@ -485,26 +544,6 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
 
           return Column(
             children: [
-              // Banner de custo total
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                color: Colors.blueAccent.withValues(alpha: 0.1),
-                child: Row(children: [
-                  const Icon(Icons.account_balance_wallet,
-                      color: Colors.blueAccent, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${motas.length} moto${motas.length > 1 ? 's' : ''} • Custo total investido: R\$ ${totalGeral.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        color: Colors.blueAccent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13),
-                  ),
-                ]),
-              ),
-
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 90),
@@ -518,6 +557,10 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                     final compra = (d['valor_compra'] as num?)
                         ?.toDouble() ?? 0;
                     final totalPecas = custoTotal - compra;
+
+                    final status = d['status'] ?? 'Em conserto';
+                    final fipe = (d['valor_fipe'] as num?)?.toDouble() ?? 0.0;
+                    final venda = (d['valor_venda'] as num?)?.toDouble() ?? 0.0;
 
                     return Card(
                       color: Colors.white.withValues(alpha: 0.05),
@@ -537,11 +580,39 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                           child: const Icon(Icons.two_wheeler,
                               color: Colors.blueAccent, size: 22),
                         ),
-                        title: Text(
-                          d['modelo'] ?? 'Sem modelo',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                d['modelo'] ?? 'Sem modelo',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            // Etiqueta de Status (Em Conserto ou Finalizada)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                  color: status == 'Finalizada'
+                                      ? Colors.green.withValues(alpha: 0.2)
+                                      : Colors.orange.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: status == 'Finalizada' ? Colors.green : Colors.orange,
+                                      width: 1
+                                  )
+                              ),
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  color: status == 'Finalizada' ? Colors.greenAccent : Colors.orangeAccent,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         subtitle: Row(children: [
                           if ((d['placa'] ?? '').toString().isNotEmpty) ...[
@@ -595,7 +666,7 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Detalhes financeiros
+                                // Detalhes financeiros primários
                                 Row(
                                   mainAxisAlignment:
                                   MainAxisAlignment.spaceAround,
@@ -606,9 +677,23 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                                     _cardCusto('Peças',
                                         'R\$ ${totalPecas.toStringAsFixed(2)}',
                                         Colors.orangeAccent),
-                                    _cardCusto('Total',
+                                    _cardCusto('Custo Total',
                                         'R\$ ${custoTotal.toStringAsFixed(2)}',
                                         Colors.greenAccent),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // Detalhes financeiros secundários (FIPE e Venda)
+                                Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _cardCusto('Valor FIPE',
+                                        fipe > 0 ? 'R\$ ${fipe.toStringAsFixed(2)}' : '---',
+                                        Colors.purpleAccent),
+                                    _cardCusto('Vendida por',
+                                        venda > 0 ? 'R\$ ${venda.toStringAsFixed(2)}' : '---',
+                                        Colors.tealAccent),
                                   ],
                                 ),
 
