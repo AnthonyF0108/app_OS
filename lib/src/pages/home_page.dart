@@ -5,7 +5,6 @@ import 'ordem_servico.dart';
 import 'historico_os_page.dart';
 import 'fluxo_caixa_page.dart';
 import 'historico_veiculos_page.dart';
-import 'cadastro_veiculo_page.dart';
 import 'motos_leilao_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -18,7 +17,6 @@ class HomePage extends StatelessWidget {
     _MenuItem('Histórico OS',     Icons.analytics_outlined,     Colors.orangeAccent, (_) => const HistoricoOSPage()),
     _MenuItem('Fluxo de Caixa',   Icons.account_balance_wallet, Colors.purpleAccent, (_) => const FluxoCaixaPage()),
     _MenuItem('Veículos',         Icons.directions_car,         Colors.cyanAccent,   (_) => const HistoricoVeiculosPage()),
-    _MenuItem('Novo Veículo',     Icons.add_road,               Colors.tealAccent,   (_) => const CadastroVeiculoPage()),
     _MenuItem('Leilão de Motos',  Icons.two_wheeler,            Colors.amberAccent,  (_) => const MotosLeilaoPage()),
   ];
 

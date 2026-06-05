@@ -76,9 +76,18 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
   }
 
   void _confirmarRecebimento(QueryDocumentSnapshot osDoc) {
-    final os = osDoc.data() as Map<String, dynamic>;
+    final os           = osDoc.data() as Map<String, dynamic>;
+    final totalOS      = ((os['valor_pecas']   as num?)?.toDouble() ?? 0) +
+        ((os['valor_servico'] as num?)?.toDouble() ?? 0);
+    final jaRecebido   = (os['valor_recebido'] as num?)?.toDouble() ?? 0;
+    final restante     = totalOS - jaRecebido;
+
     Navigator.push(context, MaterialPageRoute(
-      builder: (_) => LancamentoFinanceiroPage(dadosOS: os, osId: osDoc.id),
+      builder: (_) => LancamentoFinanceiroPage(
+        dadosOS:        os,
+        osId:           osDoc.id,
+        valorRestante:  restante,
+      ),
     ));
   }
 
@@ -226,9 +235,11 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
     double totalAReceber = 0;
     if (destaqueAReceber) {
       for (final doc in lista) {
-        final d = doc.data() as Map<String, dynamic>;
-        totalAReceber += ((d['valor_pecas']   as num?)?.toDouble() ?? 0) +
+        final d         = doc.data() as Map<String, dynamic>;
+        final totalOS   = ((d['valor_pecas']   as num?)?.toDouble() ?? 0) +
             ((d['valor_servico'] as num?)?.toDouble() ?? 0);
+        final jaRecebido = (d['valor_recebido'] as num?)?.toDouble() ?? 0;
+        totalAReceber   += (totalOS - jaRecebido).clamp(0, double.infinity);
       }
     }
 
@@ -260,10 +271,13 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
               final osDoc        = lista[index];
               final os           = osDoc.data() as Map<String, dynamic>;
               final statusAtual  = os['status']   ?? 'Orçamento';
-              final foiRecebido  = os['recebido'] == true;
               final isFinalizado = statusAtual    == 'Finalizado';
               final total        = ((os['valor_pecas']   as num?)?.toDouble() ?? 0) +
                   ((os['valor_servico'] as num?)?.toDouble() ?? 0);
+              final jaRecebido   = (os['valor_recebido'] as num?)?.toDouble() ?? 0;
+              final saldoRestante = (total - jaRecebido).clamp(0.0, double.infinity);
+              final foiRecebido  = os['recebido'] == true || saldoRestante == 0;
+              final isParcial    = jaRecebido > 0 && !foiRecebido;
               final numeroOS     = os['numero_os'] as String?;
               final nomeCliente  = os['cliente_nome'] ?? 'Sem nome';
               final equipamento  = os['equipamento']  ?? '';
@@ -336,18 +350,28 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                           decoration: BoxDecoration(
                             color: foiRecebido
                                 ? Colors.green.withValues(alpha: 0.2)
+                                : isParcial
+                                ? Colors.blue.withValues(alpha: 0.2)
                                 : Colors.orange.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                                 color: foiRecebido
                                     ? Colors.greenAccent
+                                    : isParcial
+                                    ? Colors.blueAccent
                                     : Colors.orangeAccent),
                           ),
                           child: Text(
-                            foiRecebido ? '✓ Recebido' : '⏳ A receber',
+                            foiRecebido
+                                ? '✓ Recebido'
+                                : isParcial
+                                ? '◑ Parcial • falta R\$ ${saldoRestante.toStringAsFixed(2)}'
+                                : '⏳ A receber',
                             style: TextStyle(
                                 color: foiRecebido
                                     ? Colors.greenAccent
+                                    : isParcial
+                                    ? Colors.blueAccent
                                     : Colors.orangeAccent,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold),
@@ -412,6 +436,125 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                           ],
 
                           const Divider(height: 12),
+
+                          // ── RESUMO FINANCEIRO ──────────────────────
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Total da OS',
+                                  style: TextStyle(
+                                      color: Colors.white54, fontSize: 13)),
+                              Text(
+                                'R\$ ${total.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: destaqueAReceber
+                                        ? Colors.orangeAccent
+                                        : Colors.green[400]),
+                              ),
+                            ],
+                          ),
+
+                          if (jaRecebido > 0) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Já recebido',
+                                    style: TextStyle(
+                                        color: Colors.white54, fontSize: 13)),
+                                Text(
+                                  'R\$ ${jaRecebido.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.greenAccent),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Saldo restante',
+                                    style: TextStyle(
+                                        color: Colors.white54, fontSize: 13)),
+                                Text(
+                                  'R\$ ${saldoRestante.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: saldoRestante == 0
+                                          ? Colors.greenAccent
+                                          : Colors.orangeAccent),
+                                ),
+                              ],
+                            ),
+
+                            // ── HISTÓRICO DE PARCELAS ──────────────
+                            const SizedBox(height: 10),
+                            const Text('Parcelas recebidas:',
+                                style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('transacoes')
+                                  .where('os_id', isEqualTo: osDoc.id)
+                                  .where('tipo', isEqualTo: 'Entrada')
+                                  .orderBy('data')
+                                  .snapshots(),
+                              builder: (context, snap) {
+                                if (!snap.hasData) return const SizedBox();
+                                final parcelas = snap.data!.docs;
+                                if (parcelas.isEmpty) {
+                                  return const Text('  Nenhum recebimento ainda.',
+                                      style: TextStyle(
+                                          color: Colors.white38, fontSize: 12));
+                                }
+                                return Column(
+                                  children: parcelas.map((p) {
+                                    final pd    = p.data() as Map<String, dynamic>;
+                                    final valor = (pd['valor'] as num?)?.toDouble() ?? 0;
+                                    final forma = pd['forma_pagamento'] ?? '';
+                                    final data  = pd['data'] != null
+                                        ? _formatarData(pd['data'])
+                                        : '';
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 2),
+                                      child: Row(children: [
+                                        const Icon(Icons.check_circle,
+                                            color: Colors.greenAccent, size: 13),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            '$data • $forma',
+                                            style: const TextStyle(
+                                                color: Colors.white54,
+                                                fontSize: 12),
+                                          ),
+                                        ),
+                                        Text(
+                                          'R\$ ${valor.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                              color: Colors.greenAccent,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ]),
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
+                          ],
+
+                          const SizedBox(height: 8),
+                          // ── BOTÕES DE AÇÃO ─────────────────────────
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -423,7 +566,8 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                                   onPressed: () => _abrirPDF(os),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                  icon: const Icon(Icons.edit,
+                                      color: Colors.blue),
                                   tooltip: 'Editar OS',
                                   onPressed: () => Navigator.push(context,
                                       MaterialPageRoute(
@@ -438,31 +582,33 @@ class _HistoricoOSPageState extends State<HistoricoOSPage>
                                   onPressed: () => _confirmarExclusao(
                                       osDoc.id, os['cliente_nome'] ?? ''),
                                 ),
+                                // Botão aparece se finalizado E ainda há saldo
                                 if (isFinalizado && !foiRecebido)
                                   IconButton(
-                                    icon: const Icon(Icons.attach_money,
-                                        color: Colors.greenAccent),
-                                    tooltip: 'Confirmar recebimento',
-                                    onPressed: () => _confirmarRecebimento(osDoc),
+                                    icon: Icon(
+                                      isParcial
+                                          ? Icons.add_circle_outline
+                                          : Icons.attach_money,
+                                      color: Colors.greenAccent,
+                                    ),
+                                    tooltip: isParcial
+                                        ? 'Registrar nova parcela'
+                                        : 'Confirmar recebimento',
+                                    onPressed: () =>
+                                        _confirmarRecebimento(osDoc),
                                   ),
                               ]),
-                              Text(
-                                "R\$ ${total.toStringAsFixed(2)}",
-                                style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: destaqueAReceber
-                                        ? Colors.orangeAccent
-                                        : Colors.green[400]),
-                              ),
+                              if (foiRecebido)
+                                const Icon(Icons.check_circle,
+                                    color: Colors.greenAccent, size: 20),
                             ],
                           ),
 
                           if (foiRecebido && os['data_recebimento'] != null)
                             Padding(
-                              padding: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.only(top: 2),
                               child: Text(
-                                'Recebido em: ${_formatarData(os['data_recebimento'])}',
+                                'Quitado em: ${_formatarData(os['data_recebimento'])}',
                                 style: const TextStyle(
                                     color: Colors.white38, fontSize: 11),
                               ),

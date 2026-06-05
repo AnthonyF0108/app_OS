@@ -1,41 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/app_constants.dart';
-import '../core/shared_widgets.dart';
 
 class LancamentoFinanceiroPage extends StatefulWidget {
+  /// Se passado, pré-preenche com dados de uma OS (confirmação de recebimento)
   final Map<String, dynamic>? dadosOS;
   final String? osId;
+  /// Valor ainda não pago da OS — limita o campo valor e pré-preenche
+  final double? valorRestante;
 
-  const LancamentoFinanceiroPage({super.key, this.dadosOS, this.osId});
+  const LancamentoFinanceiroPage({
+    super.key,
+    this.dadosOS,
+    this.osId,
+    this.valorRestante,
+  });
 
   @override
-  State<LancamentoFinanceiroPage> createState() =>
-      _LancamentoFinanceiroPageState();
+  State<LancamentoFinanceiroPage> createState() => _LancamentoFinanceiroPageState();
 }
 
-class _LancamentoFinanceiroPageState
-    extends State<LancamentoFinanceiroPage> {
-
-  String _tipo            = 'Entrada';
-  String _categoria       = AppOptions.categoriasEntrada.first;
-  String _formaPagamento  = AppOptions.formasPagamento.first;
+class _LancamentoFinanceiroPageState extends State<LancamentoFinanceiroPage> {
+  String _tipo = 'Entrada';
+  String _categoria = 'OS / Serviço';
+  String _formaPagamento = 'Dinheiro';
   DateTime _dataSelecionada = DateTime.now();
   bool _salvando = false;
 
-  final _descController  = TextEditingController();
-  final _valorController = TextEditingController();
+  final _descController   = TextEditingController();
+  final _valorController  = TextEditingController();
 
-  @override
-  void dispose() {
-    _descController.dispose();
-    _valorController.dispose();
-    super.dispose();
-  }
+  // Categorias disponíveis por tipo
+  static const _categoriasEntrada = ['OS / Serviço', 'Peça Vendida', 'Outros'];
+  static const _categoriasSaida   = ['Fornecedor', 'Aluguel', 'Salário', 'Energia / Água', 'Outros'];
 
-  List<String> get _categorias => _tipo == 'Entrada'
-      ? AppOptions.categoriasEntrada
-      : AppOptions.categoriasSaida;
+  List<String> get _categorias =>
+      _tipo == 'Entrada' ? _categoriasEntrada : _categoriasSaida;
 
   @override
   void initState() {
@@ -43,24 +42,17 @@ class _LancamentoFinanceiroPageState
     if (widget.dadosOS != null) {
       final os = widget.dadosOS!;
       _tipo      = 'Entrada';
-      _categoria = AppOptions.categoriasEntrada.first;
-      final total =
+      _categoria = 'OS / Serviço';
+      // Pré-preenche com o saldo RESTANTE, não o total da OS
+      final valorParaPreencher = widget.valorRestante ?? (
           ((os['valor_pecas']   as num?)?.toDouble() ?? 0) +
-              ((os['valor_servico'] as num?)?.toDouble() ?? 0);
-      _valorController.text = total.toStringAsFixed(2);
+              ((os['valor_servico'] as num?)?.toDouble() ?? 0)
+      );
+      _valorController.text = valorParaPreencher.toStringAsFixed(2);
       _descController.text  =
       'OS - ${os['cliente_nome'] ?? ''} / ${os['equipamento'] ?? ''}';
-      _formaPagamento =
-          _normalizeFormaPagamento(os['forma_pagamento']);
+      _formaPagamento = os['forma_pagamento'] ?? 'Dinheiro';
     }
-  }
-
-  /// Garante que o valor de forma_pagamento salvo na OS existe na lista atual.
-  String _normalizeFormaPagamento(dynamic raw) {
-    final v = raw?.toString() ?? '';
-    return AppOptions.formasPagamento.contains(v)
-        ? v
-        : AppOptions.formasPagamento.first;
   }
 
   Future<void> _selecionarData() async {
@@ -92,6 +84,18 @@ class _LancamentoFinanceiroPageState
       return;
     }
 
+    // Impede lançar mais do que o saldo restante
+    if (widget.valorRestante != null && valor > widget.valorRestante! + 0.01) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Valor maior que o saldo restante (R\$ ${widget.valorRestante!.toStringAsFixed(2)}).'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _salvando = true);
 
     try {
@@ -109,26 +113,47 @@ class _LancamentoFinanceiroPageState
         payload['os_id']       = widget.osId;
         payload['cliente_nome'] = widget.dadosOS?['cliente_nome'] ?? '';
 
-        await FirebaseFirestore.instance
-            .collection(AppCollections.ordens)
+        // Busca o valor já recebido para calcular o novo acumulado
+        final osSnap = await FirebaseFirestore.instance
+            .collection('ordens')
             .doc(widget.osId)
-            .update({
-          'recebido':         true,
-          'data_recebimento': Timestamp.fromDate(_dataSelecionada),
-        });
+            .get();
+        final dadosOS       = osSnap.data() ?? {};
+        final totalOS       = ((dadosOS['valor_pecas']   as num?)?.toDouble() ?? 0) +
+            ((dadosOS['valor_servico'] as num?)?.toDouble() ?? 0);
+        final jaRecebido    = (dadosOS['valor_recebido'] as num?)?.toDouble() ?? 0;
+        final novoRecebido  = jaRecebido + valor;
+        final quitado       = novoRecebido >= totalOS - 0.01;
+
+        final updateOS = <String, dynamic>{
+          'valor_recebido': novoRecebido,
+        };
+        if (quitado) {
+          updateOS['recebido']         = true;
+          updateOS['data_recebimento'] = Timestamp.fromDate(_dataSelecionada);
+        }
+
+        await FirebaseFirestore.instance
+            .collection('ordens')
+            .doc(widget.osId)
+            .update(updateOS);
       }
 
-      await FirebaseFirestore.instance
-          .collection(AppCollections.transacoes)
-          .add(payload);
+      await FirebaseFirestore.instance.collection('transacoes').add(payload);
 
       if (!mounted) return;
       Navigator.pop(context);
+
+      final quitadoMsg = widget.osId != null &&
+          (widget.valorRestante != null && valor >= widget.valorRestante! - 0.01);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lançamento de $_tipo registrado!'),
-          backgroundColor:
-          _tipo == 'Entrada' ? Colors.green : Colors.orange,
+          content: Text(quitadoMsg
+              ? 'OS quitada! Recebimento registrado. ✓'
+              : 'Parcela de R\$ ${valor.toStringAsFixed(2)} registrada!'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
         ),
       );
     } catch (e) {
@@ -142,15 +167,20 @@ class _LancamentoFinanceiroPageState
 
   @override
   Widget build(BuildContext context) {
-    final corTipo =
-    _tipo == 'Entrada' ? Colors.greenAccent : Colors.redAccent;
+    const bg = Color(0xFF000033);
+    final corTipo = _tipo == 'Entrada' ? Colors.greenAccent : Colors.redAccent;
 
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       appBar: AppBar(
-        title: Text(
-            widget.osId != null ? 'Confirmar Recebimento' : 'Novo Lançamento'),
-        backgroundColor: AppColors.primary,
+        title: Text(widget.osId == null
+            ? 'Novo Lançamento'
+            : (widget.valorRestante != null &&
+            widget.dadosOS?['valor_recebido'] != null &&
+            (widget.dadosOS!['valor_recebido'] as num) > 0)
+            ? 'Nova Parcela'
+            : 'Confirmar Recebimento'),
+        backgroundColor: bg,
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -159,9 +189,49 @@ class _LancamentoFinanceiroPageState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            // ── TIPO: apenas exibido quando NÃO é OS ─────────
+            // ── BANNER DE SALDO (quando é parcela de OS) ──────────
+            if (widget.osId != null && widget.valorRestante != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orangeAccent.withOpacity(0.5)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.account_balance_wallet,
+                      color: Colors.orangeAccent, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Saldo restante da OS',
+                            style: TextStyle(
+                                color: Colors.white54, fontSize: 12)),
+                        Text(
+                          'R\$ ${widget.valorRestante!.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              color: Colors.orangeAccent,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Text('← teto máximo',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
+                ]),
+              ),
+            ],
+
+            // ── TIPO: ENTRADA / SAÍDA ──────────────────────────────
             if (widget.osId == null) ...[
-              sectionLabel('Tipo de lançamento'),
+              const Text('Tipo de lançamento',
+                  style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 8),
               Row(children: [
                 _botaoTipo('Entrada', Colors.greenAccent),
                 const SizedBox(width: 12),
@@ -170,31 +240,25 @@ class _LancamentoFinanceiroPageState
               const SizedBox(height: 20),
             ],
 
-            // ── VALOR ─────────────────────────────────────────
-            sectionLabel('Valor (R\$)'),
+            // ── VALOR ─────────────────────────────────────────────
+            _sectionLabel('Valor (R\$)'),
             TextField(
               controller: _valorController,
-              keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-              style: TextStyle(
-                  color: corTipo, fontSize: 28, fontWeight: FontWeight.bold),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: TextStyle(color: corTipo, fontSize: 28, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
                 prefixText: 'R\$ ',
-                prefixStyle: TextStyle(
-                    color: corTipo.withOpacity(0.7), fontSize: 22),
+                prefixStyle: TextStyle(color: corTipo.withOpacity(0.7), fontSize: 22),
                 hintText: '0,00',
-                hintStyle:
-                TextStyle(color: corTipo.withOpacity(0.3), fontSize: 28),
+                hintStyle: TextStyle(color: corTipo.withOpacity(0.3), fontSize: 28),
                 filled: true,
                 fillColor: corTipo.withOpacity(0.07),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                    BorderSide(color: corTipo.withOpacity(0.3))),
+                    borderSide: BorderSide(color: corTipo.withOpacity(0.3))),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                    BorderSide(color: corTipo.withOpacity(0.3))),
+                    borderSide: BorderSide(color: corTipo.withOpacity(0.3))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: corTipo)),
@@ -202,40 +266,37 @@ class _LancamentoFinanceiroPageState
             ),
             const SizedBox(height: 20),
 
-            // ── DESCRIÇÃO ─────────────────────────────────────
-            sectionLabel('Descrição'),
+            // ── DESCRIÇÃO ─────────────────────────────────────────
+            _sectionLabel('Descrição'),
             TextField(
               controller: _descController,
               style: const TextStyle(color: Colors.white),
-              decoration:
-              darkInputDeco('Ex: Troca de tela iPhone 13', icon: Icons.notes),
+              decoration: _inputDeco('Ex: Troca de tela iPhone 13', Icons.notes),
             ),
             const SizedBox(height: 20),
 
-            // ── CATEGORIA ─────────────────────────────────────
-            DarkDropdown(
-              label: 'Categoria',
-              value: _categorias.contains(_categoria)
-                  ? _categoria
-                  : _categorias.first,
+            // ── CATEGORIA ─────────────────────────────────────────
+            _sectionLabel('Categoria'),
+            _dropdownField(
+              value: _categorias.contains(_categoria) ? _categoria : _categorias.first,
               items: _categorias,
               icon: Icons.category_outlined,
               onChanged: (v) => setState(() => _categoria = v!),
             ),
             const SizedBox(height: 16),
 
-            // ── FORMA DE PAGAMENTO ────────────────────────────
-            DarkDropdown(
-              label: 'Forma de Pagamento',
+            // ── FORMA DE PAGAMENTO ────────────────────────────────
+            _sectionLabel('Forma de Pagamento'),
+            _dropdownField(
               value: _formaPagamento,
-              items: AppOptions.formasPagamento,
+              items: ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito', 'Transferência'],
               icon: Icons.credit_card,
               onChanged: (v) => setState(() => _formaPagamento = v!),
             ),
             const SizedBox(height: 16),
 
-            // ── DATA ──────────────────────────────────────────
-            sectionLabel('Data'),
+            // ── DATA ──────────────────────────────────────────────
+            _sectionLabel('Data'),
             InkWell(
               onTap: _selecionarData,
               child: Container(
@@ -246,32 +307,28 @@ class _LancamentoFinanceiroPageState
                   border: Border.all(color: Colors.white24),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.calendar_today,
-                      color: Colors.white54, size: 18),
+                  const Icon(Icons.calendar_today, color: Colors.white54, size: 18),
                   const SizedBox(width: 10),
                   Text(
-                    '${_dataSelecionada.day.toString().padLeft(2, '0')}/'
-                        '${_dataSelecionada.month.toString().padLeft(2, '0')}/'
+                    '${_dataSelecionada.day.toString().padLeft(2,'0')}/'
+                        '${_dataSelecionada.month.toString().padLeft(2,'0')}/'
                         '${_dataSelecionada.year}',
                     style: const TextStyle(color: Colors.white, fontSize: 15),
                   ),
                   const Spacer(),
-                  const Icon(Icons.edit_calendar,
-                      color: Colors.white38, size: 16),
+                  const Icon(Icons.edit_calendar, color: Colors.white38, size: 16),
                 ]),
               ),
             ),
             const SizedBox(height: 36),
 
-            // ── BOTÃO SALVAR ──────────────────────────────────
+            // ── BOTÃO SALVAR ──────────────────────────────────────
             _salvando
-                ? kLoadingCenter
+                ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton.icon(
               onPressed: _salvar,
               icon: Icon(
-                _tipo == 'Entrada'
-                    ? Icons.arrow_downward
-                    : Icons.arrow_upward,
+                _tipo == 'Entrada' ? Icons.arrow_downward : Icons.arrow_upward,
                 color: Colors.white,
               ),
               label: Text(
@@ -281,12 +338,9 @@ class _LancamentoFinanceiroPageState
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _tipo == 'Entrada'
-                    ? Colors.green
-                    : Colors.redAccent,
+                backgroundColor: _tipo == 'Entrada' ? Colors.green : Colors.redAccent,
                 minimumSize: const Size(double.infinity, 55),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
             const SizedBox(height: 20),
@@ -302,37 +356,74 @@ class _LancamentoFinanceiroPageState
       child: GestureDetector(
         onTap: () => setState(() {
           _tipo = tipo;
-          final cats = tipo == 'Entrada'
-              ? AppOptions.categoriasEntrada
-              : AppOptions.categoriasSaida;
+          // Ajusta a categoria ao mudar tipo
+          final cats = tipo == 'Entrada' ? _categoriasEntrada : _categoriasSaida;
           if (!cats.contains(_categoria)) _categoria = cats.first;
         }),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: ativo
-                ? cor.withOpacity(0.2)
-                : Colors.white.withOpacity(0.05),
+            color: ativo ? cor.withOpacity(0.2) : Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: ativo ? cor : Colors.transparent, width: 2),
+            border: Border.all(color: ativo ? cor : Colors.transparent, width: 2),
           ),
-          child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                    tipo == 'Entrada'
-                        ? Icons.arrow_downward
-                        : Icons.arrow_upward,
-                    color: ativo ? cor : Colors.white38,
-                    size: 18),
-                const SizedBox(width: 6),
-                Text(tipo,
-                    style: TextStyle(
-                        color: ativo ? cor : Colors.white38,
-                        fontWeight: FontWeight.bold)),
-              ]),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(tipo == 'Entrada' ? Icons.arrow_downward : Icons.arrow_upward,
+                color: ativo ? cor : Colors.white38, size: 18),
+            const SizedBox(width: 6),
+            Text(tipo, style: TextStyle(color: ativo ? cor : Colors.white38, fontWeight: FontWeight.bold)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String texto) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(texto, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+  );
+
+  InputDecoration _inputDeco(String hint, IconData icon) => InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: Colors.white24),
+    prefixIcon: Icon(icon, color: Colors.white38, size: 18),
+    filled: true,
+    fillColor: Colors.white.withOpacity(0.07),
+    border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+  );
+
+  Widget _dropdownField({
+    required String value,
+    required List<String> items,
+    required IconData icon,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          dropdownColor: const Color(0xFF1A1A2E),
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white38),
+          items: items
+              .map((e) => DropdownMenuItem(
+            value: e,
+            child: Row(children: [
+              Icon(icon, color: Colors.white38, size: 16),
+              const SizedBox(width: 10),
+              Text(e, style: const TextStyle(color: Colors.white)),
+            ]),
+          ))
+              .toList(),
+          onChanged: onChanged,
         ),
       ),
     );

@@ -35,9 +35,6 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
             : '');
     final obsCtrl = TextEditingController(text: dados?['observacoes'] ?? '');
 
-    // Status: Padrão é 'Em conserto' se for nova, ou pega o valor do banco
-    String statusSelecionado = dados?['status'] ?? 'Em conserto';
-
     // Peças já salvas
     List<Map<String, dynamic>> pecas = dados?['pecas'] != null
         ? List<Map<String, dynamic>>.from(dados!['pecas'])
@@ -85,24 +82,6 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                   ]),
                   const SizedBox(height: 20),
 
-                  // ── STATUS DA MOTO ──────────────────────────────────────
-                  DropdownButtonFormField<String>(
-                    value: statusSelecionado,
-                    dropdownColor: const Color(0xFF1A1A2E),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: _decModal('Status do Veículo', Icons.info_outline),
-                    items: const [
-                      DropdownMenuItem(value: 'Em conserto', child: Text('Em conserto')),
-                      DropdownMenuItem(value: 'Finalizada', child: Text('Finalizada')),
-                    ],
-                    onChanged: (novoStatus) {
-                      if (novoStatus != null) {
-                        setModal(() => statusSelecionado = novoStatus);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 10),
-
                   // ── DADOS DA MOTO ───────────────────────────────────────
                   _inputModal(modeloCtrl, 'Modelo (ex: Honda CG 160)',
                       Icons.directions_bike),
@@ -130,8 +109,7 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                     ),
                   ]),
                   const SizedBox(height: 10),
-
-                  // ── VALORES FIPE E VENDA ─────────────────────────────────
+                  // ── VALORES FIPE E VENDA ──────────────────────────────
                   Row(children: [
                     Expanded(
                       child: TextField(
@@ -139,8 +117,7 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
                         style: const TextStyle(color: Colors.white),
-                        decoration: _decModal(
-                            'Valor FIPE (R\$)', Icons.bar_chart),
+                        decoration: _decModal('Valor FIPE (R\$)', Icons.bar_chart),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -150,13 +127,11 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
                         style: const TextStyle(color: Colors.white),
-                        decoration: _decModal(
-                            'Vendido por (R\$)', Icons.monetization_on),
+                        decoration: _decModal('Vendido por (R\$)', Icons.monetization_on),
                       ),
                     ),
                   ]),
                   const SizedBox(height: 10),
-
                   _inputModal(obsCtrl, 'Observações', Icons.notes,
                       maxLines: 2),
 
@@ -299,7 +274,6 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                           'ano':    anoCtrl.text.trim(),
                           'placa':  placaCtrl.text.trim().toUpperCase(),
                           'cor':    corCtrl.text.trim(),
-                          'status': statusSelecionado,
                           'valor_compra': double.tryParse(
                               compraCtrl.text.replaceAll(',', '.')) ?? 0.0,
                           'valor_fipe': double.tryParse(
@@ -309,8 +283,7 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                           'observacoes': obsCtrl.text.trim(),
                           'pecas':       pecas,
                           'custo_total': custoTotal,
-                          'ultima_atualizacao':
-                          FieldValue.serverTimestamp(),
+                          'ultima_atualizacao': FieldValue.serverTimestamp(),
                         };
                         if (docExistente == null) {
                           payload['data_compra'] =
@@ -536,254 +509,296 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
             );
           }
 
-          // Resumo geral no topo
-          double totalGeral = motas.fold(0, (sum, doc) {
-            final d = doc.data() as Map<String, dynamic>;
-            return sum + ((d['custo_total'] as num?)?.toDouble() ?? 0);
-          });
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 90),
+            itemCount: motas.length,
+            itemBuilder: (context, index) {
+              final doc  = motas[index];
+              final d    = doc.data() as Map<String, dynamic>;
+              final pecas      = (d['pecas'] as List?)?.length ?? 0;
+              final custoTotal = (d['custo_total'] as num?)?.toDouble() ?? 0;
+              final compra     = (d['valor_compra'] as num?)?.toDouble() ?? 0;
+              final totalPecas = custoTotal - compra;
+              final status     = d['status'] ?? 'Em conserto';
+              final fipe       = (d['valor_fipe']  as num?)?.toDouble() ?? 0.0;
+              final venda      = (d['valor_venda'] as num?)?.toDouble() ?? 0.0;
 
-          return Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 90),
-                  itemCount: motas.length,
-                  itemBuilder: (context, index) {
-                    final doc  = motas[index];
-                    final d    = doc.data() as Map<String, dynamic>;
-                    final pecas = (d['pecas'] as List?)?.length ?? 0;
-                    final custoTotal = (d['custo_total'] as num?)
-                        ?.toDouble() ?? 0;
-                    final compra = (d['valor_compra'] as num?)
-                        ?.toDouble() ?? 0;
-                    final totalPecas = custoTotal - compra;
-
-                    final status = d['status'] ?? 'Em conserto';
-                    final fipe = (d['valor_fipe'] as num?)?.toDouble() ?? 0.0;
-                    final venda = (d['valor_venda'] as num?)?.toDouble() ?? 0.0;
-
-                    return Card(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      margin: const EdgeInsets.only(bottom: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: BorderSide(
-                            color: Colors.blueAccent.withValues(alpha: 0.2)),
+              return Card(
+                color: Colors.white.withValues(alpha: 0.05),
+                margin: const EdgeInsets.only(bottom: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                      color: Colors.blueAccent.withValues(alpha: 0.2)),
+                ),
+                child: ExpansionTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.two_wheeler,
+                        color: Colors.blueAccent, size: 22),
+                  ),
+                  title: Text(
+                    d['modelo'] ?? 'Sem modelo',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Row(children: [
+                    if ((d['placa'] ?? '').toString().isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(d['placa'],
+                            style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
                       ),
-                      child: ExpansionTile(
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blueAccent.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
+                      const SizedBox(width: 6),
+                    ],
+                    if ((d['ano'] ?? '').toString().isNotEmpty)
+                      Text(d['ano'],
+                          style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12)),
+                    if ((d['cor'] ?? '').toString().isNotEmpty)
+                      Text(' • ${d['cor']}',
+                          style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 12)),
+                  ]),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'R\$ ${custoTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15),
+                      ),
+                      Text(
+                        '$pecas peça${pecas != 1 ? 's' : ''}',
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Detalhes financeiros
+                          Row(
+                            mainAxisAlignment:
+                            MainAxisAlignment.spaceAround,
+                            children: [
+                              _cardCusto('Compra',
+                                  'R\$ ${compra.toStringAsFixed(2)}',
+                                  Colors.blueAccent),
+                              _cardCusto('Peças',
+                                  'R\$ ${totalPecas.toStringAsFixed(2)}',
+                                  Colors.orangeAccent),
+                              _cardCusto('Total',
+                                  'R\$ ${custoTotal.toStringAsFixed(2)}',
+                                  Colors.greenAccent),
+                            ],
                           ),
-                          child: const Icon(Icons.two_wheeler,
-                              color: Colors.blueAccent, size: 22),
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                d['modelo'] ?? 'Sem modelo',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            // Etiqueta de Status (Em Conserto ou Finalizada)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                  color: status == 'Finalizada'
-                                      ? Colors.green.withValues(alpha: 0.2)
-                                      : Colors.orange.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(12),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment:
+                            MainAxisAlignment.spaceAround,
+                            children: [
+                              _cardCusto('Valor FIPE',
+                                  fipe > 0 ? 'R\$ ${fipe.toStringAsFixed(2)}' : '---',
+                                  Colors.purpleAccent),
+                              _cardCusto('Vendida por',
+                                  venda > 0 ? 'R\$ ${venda.toStringAsFixed(2)}' : '---',
+                                  Colors.tealAccent),
+                            ],
+                          ),
+
+                          // ── LUCRO ──────────────────────────────
+                          if (venda > 0) ...[
+                            const SizedBox(height: 12),
+                                () {
+                              final lucro    = venda - custoTotal;
+                              final pct      = custoTotal > 0
+                                  ? (lucro / custoTotal) * 100
+                                  : 0.0;
+                              final positivo = lucro >= 0;
+                              final cor      = positivo
+                                  ? Colors.greenAccent
+                                  : Colors.redAccent;
+                              final sinal    = positivo ? '+' : '';
+                              return Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: cor.withValues(alpha: 0.08),
+                                  borderRadius:
+                                  BorderRadius.circular(12),
                                   border: Border.all(
-                                      color: status == 'Finalizada' ? Colors.green : Colors.orange,
-                                      width: 1
-                                  )
-                              ),
-                              child: Text(
-                                status,
-                                style: TextStyle(
-                                  color: status == 'Finalizada' ? Colors.greenAccent : Colors.orangeAccent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                                      color:
+                                      cor.withValues(alpha: 0.35)),
                                 ),
-                              ),
-                            ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(children: [
+                                      Icon(
+                                        positivo
+                                            ? Icons.trending_up
+                                            : Icons.trending_down,
+                                        color: cor,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Lucro',
+                                        style: TextStyle(
+                                            color: cor.withValues(
+                                                alpha: 0.8),
+                                            fontSize: 13,
+                                            fontWeight:
+                                            FontWeight.bold),
+                                      ),
+                                    ]),
+                                    Row(children: [
+                                      Text(
+                                        '$sinal R\$ ${lucro.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                            color: cor,
+                                            fontSize: 15,
+                                            fontWeight:
+                                            FontWeight.bold),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Container(
+                                        padding:
+                                        const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: cor.withValues(
+                                              alpha: 0.15),
+                                          borderRadius:
+                                          BorderRadius.circular(
+                                              20),
+                                        ),
+                                        child: Text(
+                                          '$sinal${pct.toStringAsFixed(1)}%',
+                                          style: TextStyle(
+                                              color: cor,
+                                              fontSize: 12,
+                                              fontWeight:
+                                              FontWeight.bold),
+                                        ),
+                                      ),
+                                    ]),
+                                  ],
+                                ),
+                              );
+                            }(),
                           ],
-                        ),
-                        subtitle: Row(children: [
-                          if ((d['placa'] ?? '').toString().isNotEmpty) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(d['placa'],
-                                  style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          if ((d['ano'] ?? '').toString().isNotEmpty)
-                            Text(d['ano'],
+
+                          // Observações
+                          if ((d['observacoes'] ?? '')
+                              .toString()
+                              .isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            const Divider(color: Colors.white12),
+                            Text('Obs: ${d['observacoes']}',
                                 style: const TextStyle(
                                     color: Colors.white54,
-                                    fontSize: 12)),
-                          if ((d['cor'] ?? '').toString().isNotEmpty)
-                            Text(' • ${d['cor']}',
-                                style: const TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 12)),
-                        ]),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'R\$ ${custoTotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                  color: Colors.greenAccent,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15),
-                            ),
-                            Text(
-                              '$pecas peça${pecas != 1 ? 's' : ''}',
-                              style: const TextStyle(
-                                  color: Colors.white38, fontSize: 11),
-                            ),
+                                    fontSize: 13)),
                           ],
-                        ),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Detalhes financeiros primários
-                                Row(
-                                  mainAxisAlignment:
-                                  MainAxisAlignment.spaceAround,
-                                  children: [
-                                    _cardCusto('Compra',
-                                        'R\$ ${compra.toStringAsFixed(2)}',
-                                        Colors.blueAccent),
-                                    _cardCusto('Peças',
-                                        'R\$ ${totalPecas.toStringAsFixed(2)}',
-                                        Colors.orangeAccent),
-                                    _cardCusto('Custo Total',
-                                        'R\$ ${custoTotal.toStringAsFixed(2)}',
-                                        Colors.greenAccent),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                // Detalhes financeiros secundários (FIPE e Venda)
-                                Row(
-                                  mainAxisAlignment:
-                                  MainAxisAlignment.spaceAround,
-                                  children: [
-                                    _cardCusto('Valor FIPE',
-                                        fipe > 0 ? 'R\$ ${fipe.toStringAsFixed(2)}' : '---',
-                                        Colors.purpleAccent),
-                                    _cardCusto('Vendida por',
-                                        venda > 0 ? 'R\$ ${venda.toStringAsFixed(2)}' : '---',
-                                        Colors.tealAccent),
-                                  ],
-                                ),
 
-                                // Observações
-                                if ((d['observacoes'] ?? '')
-                                    .toString()
-                                    .isNotEmpty) ...[
-                                  const SizedBox(height: 10),
-                                  const Divider(color: Colors.white12),
-                                  Text('Obs: ${d['observacoes']}',
+                          // Lista de peças
+                          if ((d['pecas'] as List?)?.isNotEmpty ==
+                              true) ...[
+                            const SizedBox(height: 10),
+                            const Divider(color: Colors.white12),
+                            const Text('Peças:',
+                                style: TextStyle(
+                                    color: Colors.white70,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12)),
+                            ...(d['pecas'] as List).map((p) {
+                              final sub =
+                                  ((p['valor'] as num?)?.toDouble() ??
+                                      0) *
+                                      ((p['qtd'] as num?)?.toInt() ??
+                                          1);
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                    left: 8, top: 3),
+                                child: Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${p['qtd']}x ${p['nome']}',
                                       style: const TextStyle(
                                           color: Colors.white54,
-                                          fontSize: 13)),
-                                ],
-
-                                // Lista de peças
-                                if ((d['pecas'] as List?)?.isNotEmpty ==
-                                    true) ...[
-                                  const SizedBox(height: 10),
-                                  const Divider(color: Colors.white12),
-                                  const Text('Peças:',
-                                      style: TextStyle(
-                                          color: Colors.white70,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12)),
-                                  ...(d['pecas'] as List).map((p) {
-                                    final sub =
-                                        ((p['valor'] as num?)?.toDouble() ??
-                                            0) *
-                                            ((p['qtd'] as num?)?.toInt() ??
-                                                1);
-                                    return Padding(
-                                      padding: const EdgeInsets.only(
-                                          left: 8, top: 3),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            '${p['qtd']}x ${p['nome']}',
-                                            style: const TextStyle(
-                                                color: Colors.white54,
-                                                fontSize: 12),
-                                          ),
-                                          Text(
-                                            'R\$ ${sub.toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                                color: Colors.orangeAccent,
-                                                fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                                ],
-
-                                const SizedBox(height: 10),
-                                const Divider(color: Colors.white12),
-
-                                // Botões
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit,
-                                          color: Colors.blueAccent),
-                                      tooltip: 'Editar',
-                                      onPressed: () => _abrirFormulario(
-                                          docExistente: doc),
+                                          fontSize: 12),
                                     ),
-                                    IconButton(
-                                      icon: const Icon(
-                                          Icons.delete_outline,
-                                          color: Colors.redAccent),
-                                      tooltip: 'Excluir',
-                                      onPressed: () => _confirmarExclusao(
-                                          doc.id, d['modelo'] ?? 'Moto'),
+                                    Text(
+                                      'R\$ ${sub.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                          color: Colors.orangeAccent,
+                                          fontSize: 12),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
+                              );
+                            }),
+                          ],
+
+                          const SizedBox(height: 10),
+                          const Divider(color: Colors.white12),
+
+                          // Botões
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit,
+                                    color: Colors.blueAccent),
+                                tooltip: 'Editar',
+                                onPressed: () => _abrirFormulario(
+                                    docExistente: doc),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.redAccent),
+                                tooltip: 'Excluir',
+                                onPressed: () => _confirmarExclusao(
+                                    doc.id, d['modelo'] ?? 'Moto'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),
