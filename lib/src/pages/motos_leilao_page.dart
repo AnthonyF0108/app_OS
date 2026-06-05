@@ -42,6 +42,9 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
 
     bool salvando = false;
 
+    String statusSelecionado =
+        dados?['status']?.toString() ?? 'Em conserto';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -131,6 +134,30 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                       ),
                     ),
                   ]),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: statusSelecionado,
+                    dropdownColor: const Color(0xFF1A1A2E),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _decModal('Status', Icons.engineering),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Em conserto',
+                        child: Text('Em conserto'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Finalizada',
+                        child: Text('Finalizada'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setModal(() {
+                          statusSelecionado = value;
+                        });
+                      }
+                    },
+                  ),
                   const SizedBox(height: 10),
                   _inputModal(obsCtrl, 'Observações', Icons.notes,
                       maxLines: 2),
@@ -274,6 +301,7 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                           'ano':    anoCtrl.text.trim(),
                           'placa':  placaCtrl.text.trim().toUpperCase(),
                           'cor':    corCtrl.text.trim(),
+                          'status': statusSelecionado,
                           'valor_compra': double.tryParse(
                               compraCtrl.text.replaceAll(',', '.')) ?? 0.0,
                           'valor_fipe': double.tryParse(
@@ -546,35 +574,72 @@ class _MotosLeilaoPageState extends State<MotosLeilaoPage> {
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  subtitle: Row(children: [
-                    if ((d['placa'] ?? '').toString().isNotEmpty) ...[
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Linha 1: placa · ano · cor
+                      Row(children: [
+                        if ((d['placa'] ?? '').toString().isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(d['placa'],
+                                style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        if ((d['ano'] ?? '').toString().isNotEmpty)
+                          Text(d['ano'],
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                        if ((d['cor'] ?? '').toString().isNotEmpty)
+                          Flexible(
+                            child: Text(
+                              ' • ${d['cor']}',
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ]),
+                      const SizedBox(height: 3),
+                      // Linha 2: badge de status
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                            horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
+                          color: status == 'Finalizada'
+                              ? Colors.green.withValues(alpha: 0.2)
+                              : Colors.orange.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: status == 'Finalizada'
+                                  ? Colors.green
+                                  : Colors.orange,
+                              width: 1),
                         ),
-                        child: Text(d['placa'],
-                            style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold)),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            color: status == 'Finalizada'
+                                ? Colors.greenAccent
+                                : Colors.orangeAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 6),
                     ],
-                    if ((d['ano'] ?? '').toString().isNotEmpty)
-                      Text(d['ano'],
-                          style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12)),
-                    if ((d['cor'] ?? '').toString().isNotEmpty)
-                      Text(' • ${d['cor']}',
-                          style: const TextStyle(
-                              color: Colors.white38,
-                              fontSize: 12)),
-                  ]),
+                  ),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
