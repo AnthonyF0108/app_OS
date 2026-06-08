@@ -6,11 +6,12 @@ import 'historico_os_page.dart';
 import 'fluxo_caixa_page.dart';
 import 'historico_veiculos_page.dart';
 import 'motos_leilao_page.dart';
+import 'estoque_pintura_page.dart';
+import 'patrimonio_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  // Dados dos menus: (título, ícone, cor, destino)
   static final _menus = <_MenuItem>[
     _MenuItem('Clientes',         Icons.person_add_alt_1,       Colors.blueAccent,   (_) => const ListaClientesPage()),
     _MenuItem('Nova OS',          Icons.note_add,               Colors.greenAccent,  (_) => const OrdemServicoPage()),
@@ -18,6 +19,8 @@ class HomePage extends StatelessWidget {
     _MenuItem('Fluxo de Caixa',   Icons.account_balance_wallet, Colors.purpleAccent, (_) => const FluxoCaixaPage()),
     _MenuItem('Veículos',         Icons.directions_car,         Colors.cyanAccent,   (_) => const HistoricoVeiculosPage()),
     _MenuItem('Leilão de Motos',  Icons.two_wheeler,            Colors.amberAccent,  (_) => const MotosLeilaoPage()),
+    _MenuItem('Estoque Pintura',   Icons.format_paint,           Colors.pinkAccent,   (_) => const EstoquePinturaPage()),
+    _MenuItem('Patrimônio',        Icons.inventory_2,            Colors.purpleAccent, (_) => const PatrimonioPage()),
   ];
 
   @override
@@ -59,7 +62,6 @@ class HomePage extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 15,
                     mainAxisSpacing: 15,
-                    // childAspectRatio ajustado para evitar overflow em telas pequenas
                     childAspectRatio: 1.05,
                   ),
                   itemCount: _menus.length,
@@ -77,8 +79,6 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// ── DATA CLASS DO MENU ────────────────────────────────────────────────────────
-
 class _MenuItem {
   final String titulo;
   final IconData icone;
@@ -87,8 +87,6 @@ class _MenuItem {
 
   const _MenuItem(this.titulo, this.icone, this.cor, this.builder);
 }
-
-// ── CARD DO MENU ──────────────────────────────────────────────────────────────
 
 class _MenuCard extends StatelessWidget {
   final _MenuItem item;

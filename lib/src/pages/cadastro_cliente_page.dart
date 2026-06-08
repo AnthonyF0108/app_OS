@@ -20,6 +20,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   // Controllers
   final nomeController = TextEditingController();
   final cpfController = TextEditingController();
+  final nascimentoController = TextEditingController();
   final telController = TextEditingController();
   final emailController = TextEditingController();
   final cepController = TextEditingController();
@@ -31,11 +32,11 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
   @override
   void initState() {
     super.initState();
-    // Se estiver editando, preenche os campos com os dados do Firebase
     if (widget.clienteExistente != null) {
       final dados = widget.clienteExistente!.data() as Map<String, dynamic>;
       nomeController.text = dados['nome'] ?? '';
       cpfController.text = dados['cpf'] ?? '';
+      nascimentoController.text = dados['nascimento'] ?? '';
       telController.text = dados['telefone'] ?? '';
       emailController.text = dados['email'] ?? '';
       cepController.text = dados['cep'] ?? '';
@@ -46,7 +47,6 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
     }
   }
 
-  // --- VALIDAÇÃO DE CPF (Sua lógica que já funciona) ---
   bool isCpfValido(String cpf) {
     final cleanCpf = cpf.replaceAll(RegExp(r'[^0-9]'), '');
     if (cleanCpf.length != 11) return false;
@@ -65,7 +65,6 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
     return true;
   }
 
-  // Busca CEP automático
   Future<void> buscarCEP(String cep) async {
     final cleanCep = cep.replaceAll(RegExp(r'[^0-9]'), '');
     if (cleanCep.length != 8) return;
@@ -93,6 +92,7 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
       final dadosParaSalvar = {
         'nome': nomeController.text,
         'cpf': cpfController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+        'nascimento': nascimentoController.text,
         'telefone': telController.text,
         'email': emailController.text,
         'cep': cepController.text,
@@ -105,13 +105,11 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
 
       try {
         if (widget.clienteExistente != null) {
-          // MODO EDIÇÃO
           await FirebaseFirestore.instance
               .collection('clientes')
               .doc(widget.clienteExistente!.id)
               .update(dadosParaSalvar);
         } else {
-          // MODO NOVO CADASTRO
           dadosParaSalvar['data_cadastro'] = FieldValue.serverTimestamp();
           await FirebaseFirestore.instance.collection('clientes').add(dadosParaSalvar);
         }
@@ -149,7 +147,6 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
             children: [
               _buildField(nomeController, 'Nome Completo', Icons.person),
 
-              // CPF com Máscara
               TextFormField(
                 controller: cpfController,
                 inputFormatters: [TextInputMask(mask: '999.999.999-99')],
@@ -162,7 +159,6 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                 },
               ),
 
-              // Telefone com Máscara
               TextFormField(
                 controller: telController,
                 inputFormatters: [TextInputMask(mask: '(99) 99999-9999')],
@@ -171,9 +167,16 @@ class _CadastroClientePageState extends State<CadastroClientePage> {
                 validator: (val) => val!.isEmpty ? 'Obrigatório' : null,
               ),
 
+              TextFormField(
+                controller: nascimentoController,
+                inputFormatters: [TextInputMask(mask: '99/99/9999')],
+                decoration: const InputDecoration(labelText: 'Nascimento', icon: Icon(Icons.cake)),
+                keyboardType: TextInputType.phone,
+                validator: (val) => val!.isEmpty ? 'Obrigatório' : null,
+              ),
+
               _buildField(emailController, 'Email', Icons.email, keyboard: TextInputType.emailAddress),
 
-              // CEP com Busca automática
               TextFormField(
                 controller: cepController,
                 inputFormatters: [TextInputMask(mask: '99999-999')],
